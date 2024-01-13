@@ -147,3 +147,87 @@ Los statements consisten en:
 - YubiKey (memoria para dar acceso proveída por un tercero). Soporta múltiples roots y usuarios IAM usando sólo una key de seguridad.
 - Hardware Key Fob MFA Device también de un tercero (Gemalto).
 - Hardware Key Fob MFA Device for AWS GovBloud (US) de un tercero (SurePassID) para Cloud de gobiernos.
+
+
+## Access Keys
+
+- Para acceder a AWS tenemos 3 opciones:
+	- AWS Management Console (protegida con contraseña + MFA).
+	- AWS Command Line Interface (CLI) protegida con access keys.
+	- Software Developer Kit (SDK) para código, también protegida con access keys.
+- Los access keys son generados mediante la consola de AWS.
+- Los usuarios administran sus propias access keys.
+- Las access keys son secretas, como una contraseña, así que no hay que compartirlas.
+- Access key ID != username y secret access key != password.
+
+
+## AWS CLI
+
+- Es una herramienta que nos permite interactuar con los servicios de AWS utilizando comandos en nuestra línea de comandos.
+- Acceso directo a las APIs públicas de los servicios de AWS.
+- Puedes desarrollar scripts para administrar los recursos.
+- Es una alternativa a usar el AWS Management Console.
+
+Para configurar nuestro acceso tenemos que hacer lo siguiente:
+
+```bash
+aws configure
+
+# Introducir el Access Key ID y el Secret Access Key
+# Colocar el nombre de la región por defecto
+
+# Para listar los usuarios IAM
+aws iam list-users
+```
+
+
+## AWS SDK
+
+- Es el Software Development Kit que nos brinda AWS para desarrollar nuestras aplicaciones.
+- Muchas librerías para acceder a las APIs.
+- Nos permite acceder y administrar nuestros servicios de AWS.
+- Embebido en nuestra aplicación.
+- Soporta JavaScript, Python, PHP, .NET, Ruby, Java, Go, NodeJS, C++, entre otras cosas.
+
+
+## Roles for services
+
+- Algunos servicios de AWS necesitarán realizar acciones en tu nombre. Para hacer esto, asignaremos permisos al servicio de AWS con los roles de IAM.
+- Hay algunos roles comunes como:
+	- EC2 Instance Roles.
+	- Lambda Function Roles.
+	- Roles for CloudFormation.
+
+
+## Security Tools
+
+- IAM Credentials Report (account-level) es un reporte que lista todas las cuentas de usuario y el estado de sus múltiples credenciales.
+- IAM Access Advisor (user-level) muestra el servicio de permisos otorgados a un usuario y cuándo fueron accedidos por última vez estos servicios. Podemos utilizar esta información para revisar nuestras políticas.
+
+
+## Mejores prácticas con IAM
+
+- No usar el usuario root excepto para configurar la cuenta de AWS.
+- Un usuario físico = un usuario en AWS.
+- Asignar usuarios a grupos y asignar permisos a los grupos.
+- Crear una política fuerte para las contraseñas.
+- Usar y hacer cumplir el uso de MFA.
+- Crear y usar roles para dar permisos a los servicios de AWS.
+- Usar access keys para accesos programáticos (CLI/SDK).
+- Auditar permisos de tu cuenta usando IAM Credentials Report y IAM Access Advisor.
+- No compartir nunca los usuarios IAM ni los access keys.
+
+
+## Shared Responsibility Model for IAM
+
+### AWS
+- Infraestructurra (seguridad de la red global).
+- Configuración y análisis de vulnerabilidad.
+- Validación de cumplimiento.
+
+### Nosotros
+- Usuarios, grupos, roles, administración de políticas y monitoreo.
+- Habilitar MFA para todas las cuentas.
+- Rotar todas las keys a menudo.
+- Utilizar las herramientas de IAM para aplicar los permisos apropiados.
+- Analizar los patrones de acceso y revisar los permisos.
