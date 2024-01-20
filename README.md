@@ -147,3 +147,161 @@ Los statements consisten en:
 - YubiKey (memoria para dar acceso proveída por un tercero). Soporta múltiples roots y usuarios IAM usando sólo una key de seguridad.
 - Hardware Key Fob MFA Device también de un tercero (Gemalto).
 - Hardware Key Fob MFA Device for AWS GovBloud (US) de un tercero (SurePassID) para Cloud de gobiernos.
+
+
+## Access Keys
+
+- Para acceder a AWS tenemos 3 opciones:
+	- AWS Management Console (protegida con contraseña + MFA).
+	- AWS Command Line Interface (CLI) protegida con access keys.
+	- Software Developer Kit (SDK) para código, también protegida con access keys.
+- Los access keys son generados mediante la consola de AWS.
+- Los usuarios administran sus propias access keys.
+- Las access keys son secretas, como una contraseña, así que no hay que compartirlas.
+- Access key ID != username y secret access key != password.
+
+
+## AWS CLI
+
+- Es una herramienta que nos permite interactuar con los servicios de AWS utilizando comandos en nuestra línea de comandos.
+- Acceso directo a las APIs públicas de los servicios de AWS.
+- Puedes desarrollar scripts para administrar los recursos.
+- Es una alternativa a usar el AWS Management Console.
+
+Para configurar nuestro acceso tenemos que hacer lo siguiente:
+
+```bash
+aws configure
+
+# Introducir el Access Key ID y el Secret Access Key
+# Colocar el nombre de la región por defecto
+
+# Para listar los usuarios IAM
+aws iam list-users
+```
+
+
+## AWS SDK
+
+- Es el Software Development Kit que nos brinda AWS para desarrollar nuestras aplicaciones.
+- Muchas librerías para acceder a las APIs.
+- Nos permite acceder y administrar nuestros servicios de AWS.
+- Embebido en nuestra aplicación.
+- Soporta JavaScript, Python, PHP, .NET, Ruby, Java, Go, NodeJS, C++, entre otras cosas.
+
+
+## Roles for services
+
+- Algunos servicios de AWS necesitarán realizar acciones en tu nombre. Para hacer esto, asignaremos permisos al servicio de AWS con los roles de IAM.
+- Hay algunos roles comunes como:
+	- EC2 Instance Roles.
+	- Lambda Function Roles.
+	- Roles for CloudFormation.
+
+
+## Security Tools
+
+- IAM Credentials Report (account-level) es un reporte que lista todas las cuentas de usuario y el estado de sus múltiples credenciales.
+- IAM Access Advisor (user-level) muestra el servicio de permisos otorgados a un usuario y cuándo fueron accedidos por última vez estos servicios. Podemos utilizar esta información para revisar nuestras políticas.
+
+
+## Mejores prácticas con IAM
+
+- No usar el usuario root excepto para configurar la cuenta de AWS.
+- Un usuario físico = un usuario en AWS.
+- Asignar usuarios a grupos y asignar permisos a los grupos.
+- Crear una política fuerte para las contraseñas.
+- Usar y hacer cumplir el uso de MFA.
+- Crear y usar roles para dar permisos a los servicios de AWS.
+- Usar access keys para accesos programáticos (CLI/SDK).
+- Auditar permisos de tu cuenta usando IAM Credentials Report y IAM Access Advisor.
+- No compartir nunca los usuarios IAM ni los access keys.
+
+
+## Shared Responsibility Model for IAM
+
+### AWS
+- Infraestructurra (seguridad de la red global).
+- Configuración y análisis de vulnerabilidad.
+- Validación de cumplimiento.
+
+### Nosotros
+- Usuarios, grupos, roles, administración de políticas y monitoreo.
+- Habilitar MFA para todas las cuentas.
+- Rotar todas las keys a menudo.
+- Utilizar las herramientas de IAM para aplicar los permisos apropiados.
+- Analizar los patrones de acceso y revisar los permisos.
+
+Si un usuario IAM no tiene acceso a la sección de facturación debemos ir con nuestro usuario root a la opción Account y activar los usuarios IAM para acceder a esta sección.
+
+
+# EC2
+
+- Es uno de los servicios más populares de AWS.
+- EC2 = Elastic Compute Cloud = Infrastructure as a Service.
+- Principalmente consiste en:
+	- Alquilar máquinas virtuales (EC2).
+	- Guardar data en discos virtuales (EBS).
+	- Distribuir carga entre máquinas (ELB).
+	- Escalar los servicios usando un grupo de auto-escalada (ASG).
+- Para conocer como funciona EC2 es fundamental entender cómo funciona la nube.
+
+
+## EC2 sizing y opciones de configuración
+
+- **Sistemas operativos:** Linux, Windows o Mac OS.
+- Qué tanta capacidad de computo en poder y núcleos (CPU).
+- Qué tanta memoria (RAM).
+- Qué tanto espacio de almacenamiento:
+	- Anclado a la red (EBS & EFS).
+	- Hardware (EC2 Instance Store).
+- **Tarjeta de red**: Velocidad de la tarjeta, dirección IP pública.
+- **Reglas de firewall:** Grupo de seguridad.
+- **Comando de arranque (configurar la primer ejecución):** Data de usuario EC2.
+
+### Data de usuario EC2
+- Es posible arrancar nuestras instancias usando un EC2 User data script.
+- Utilizar estos comandos de arranque significa lanzar comandos cuando nuestra máquina enciende.
+- Este script sólo se ejecuta una vez la instancia enciente.
+- Data de usuario EC2 es usada para automatizar tareas de encendido tales como:
+	- Instalar actualizaciones.
+	- Instalas software.
+	- Descargar archivos frecuentes desde internet.
+	- Cualquier cosa en la que puedas pensar.
+- Estos scripts se ejecutan con el usuario root.
+
+
+## Grupos de seguridad
+
+- Los grupos de seguridad son fundamentales en la seguridad de red en AWS.
+- Estos controlan cómo es permitido el tráfico dentro y fuera de nuestras instancias EC2.
+- Los grupos de seguridad sólo contienen reglas para permitir acceso.
+- Las reglas de los grupos de seguridad pueden ser referenciadas por IP o por grupo de seguridad.
+- Los grupos de seguridad actúan como un firewall en las instancias EC2.
+- Estos regulan:
+	- Acceso a los puertos.
+	- Autorizan rangos de IP - IPv4 e IPv6.
+	- Control de la red entrante (desde otra a la instancia).
+- Pueden ser asociadas a varias instancias.
+- Bloqueado en una combinación de región/VPC.
+- Vive afuera de EC2 - si el tráfico es bloqueado la instancia EC2 no lo verá.
+- Es bueno mantener separado un grupo de seguridad del acceso SSH.
+- Si tu aplicación no es accesible (time out), entonces es un problema del grupo de seguridad.
+- Si tu aplicación da un error de  "connection refused", entonces es un error de la aplicación o no ha sido lanzada.
+- Todas las reglas de entrada son bloqueadas por defecto.
+- Todas las reglas de salida son autorizadas por defecto.
+
+
+## Puertos clásicos que debes conocer
+
+- 22 = SSH (Secure Shell) - acceder a una instancia Linux.
+- 21 = FTP (File Transfer Protocol) - cargar archivos en el mismo archivo compartido.
+- 22 = SFTP (Secure File Transfer Protocol) - cargar archivos usando SSH.
+- 80 = HTTP - acceso no seguro de sitios web.
+- 443 = HTTPS - acceso deguro de sitios web.
+- 3389 = RDP (Remote Desktop Protocol) - acceder a una instancia Windows.
+
+
+## Roles IAM en instancias EC2
+
+Es importante tener en cuenta que si queremos por ejemplo que nuestra instancia EC2 pueda consultar los usuarios de IAM, tendremos que ir a AWS IAM y crear un rol que de estos permisos para asignarlo a nuestra instancia. Esto nos permitirá utilizar AWS CLI sin necesidad de configurar las credenciales para realizar consultas.
