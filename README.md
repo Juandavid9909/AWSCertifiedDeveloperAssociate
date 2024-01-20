@@ -305,3 +305,107 @@ Si un usuario IAM no tiene acceso a la sección de facturación debemos ir con n
 ## Roles IAM en instancias EC2
 
 Es importante tener en cuenta que si queremos por ejemplo que nuestra instancia EC2 pueda consultar los usuarios de IAM, tendremos que ir a AWS IAM y crear un rol que de estos permisos para asignarlo a nuestra instancia. Esto nos permitirá utilizar AWS CLI sin necesidad de configurar las credenciales para realizar consultas.
+
+
+## EBS
+
+- Un volumen EBS (Elastic Block Store) es un disco de red donde puedes anclar tus instancias mientras ellas están corriendo.
+- Esto le permite a nuestras instancias tener data persistente, incluso después de eliminar/terminar las instancias.
+- Pueden ser montadas sólo en una instancia a la vez (en el nivel CCP).
+- Están vinculadas a una zona de disponibilidad específica.
+- Son discos de red:
+	- Usan la red para comunicarse con la instancia, esto significa que puede haber un poco de latencia.
+	- Pueden ser deasociadas de una instancia EC2 para agregarse a otra instancia fácilmente teniendo en cuenta la zona de disponibilidad.
+
+Cuando creamos un volumen EBS podemos configurar que se elimine cuando le dan "Terminate" a la instancia a la que se encuentra asociado:
+
+- Por defecto el EBS raíz es eliminado cuando se termina una instancia.
+- Por defecto, cualquier otro volumen EBS no es eliminado cuando se termina una instancia.
+
+### EBS Snapshots
+- Hacer un backup (snapshot)  de tu volumen EBS en un punto del tiempo.
+- No es necesario desasociar el volumen para hacer un snapshot, pero es recomendado.
+- Los snapshots se pueden copiar entre diferences AZs o regiones.
+
+#### EBS Snapshots Features
+- EBS Snapshot Archive:
+	- Mueve un snapshot a un "archive tier" que es 75% más barato.
+	- Toma entre 24 a 72 horas para restaurar el archive tier.
+- Papelera de reciclaje para EBS Snapshots:
+	- Configura reglas para mantener los snapshots eliminados para que puedas recuperarlos después de una eliminación accidental.
+	- Retención específica (desde 1 día hasta 1 año).
+- Fast Snapshot Restore (FSR):
+	- Fuerza la inicialización completa del snapshot para no tener latencia en el primer uso.
+
+### Tipos de volúmenes EBS
+Hay 6 tipos de volúmenes cuando hablamos de EBS:
+
+- **gp2/gp3 (SSD):** Propósitos generales de volumen SSD que tiene un precio y rendimiento balanceado para la variedad de cargas de trabajo.
+- **io 1/io2 Block Express (SSD):** Más alto rendimiento de volumen SSD para misiones críticas de baja latencia y altas cargas de trabajo.
+- **st1 (HDD):** Precio más bajo de volumen HDD designado para acceso frecuente, cargas de trabajo de alto rendimiento.
+- **sc1 (HDD):** Precio más bajo de volumen HDD designado para acceso poco frecuente de cargas de trabajo.
+
+Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O Ops Per Sec). Tener en cuenta que sólo gps/gp3 e io1/io2 Block Express pueden ser usados como volúmenes de inicio.
+
+### EBS Multi-Attach
+- Podemos asociar el mismo volumen EBS a múltiples instancias EC2 en la misma AZ.
+- Cada instancia tiene permisos completos para lectura y escritura en el volumen de alto rendimiento.
+
+
+## AMIs
+
+- AMI = Amazon Machine Image.
+- Las AMIs son personalizaciones de una instancia EC2:
+	- Puedes agregar tu propio software, configuraciones, sistema operativo, monitoreo, etc.
+	- Rápido tiempo de boot/configuración porque todo nuestro software está precargado.
+- Las AMIs son construídas para una región específica (y puede ser copiada entre regiones).
+- Puedes lanzar una instancia EC2 desde:
+	- **AMI Pública:** Proveída por AWS.
+	- **Nuestra propia AMI:** Nosotros las hacemos y mantenemos por nuestra cuenta.
+	- **Una AMI de AWS Marketplace:** Una AMI que alguien más creó (y potencialmente vendió).
+
+### ¿Cómo construir nuestra AMI?
+- Iniciar una instancia EC2 y personalizarla.
+- Detener la instancia (para integridad de datos).
+- Construir una AMI - esto también creará un snapshot EBS.
+- Crear una instancia con otra AMI.
+
+
+## EFS
+
+- Es un NFS administrado (network file system) que puede ser montado en muchos EC2.
+- EFS trabaja con instancias EC2 en múltiples AZs.
+- Altamente disponible, escalable y caro (3 x gp2), pago por uso.
+- Se usan los grupos de seguridad para controlar el acceso a EFS.
+- Compatible con AMIs basadas en Linux (no Windows).
+
+### EFS - Clases de rendimiento y almacenamiento
+- EFS Scale:
+	- 1000 clientes NFS de forma concurrente, más de 10GB/s.
+	- Red de sistema de archivos que crete hasta Petabyte, automáticamente.
+- Modo rendimiento:
+	- Propósito general (por defecto) - Latencia sensitiva.
+	- Máximo I/O - mayor latencia, altamente paralelo (big data, procesamiento).
+- Modo completo:
+	- Bursting - 1TB = 50MB/s.
+	- Provisionado - configurar tu tamaño de espacio, GB/s o TB en almacenamiento.
+	- Elástico - automáticamente escala basado en las cargas de trabajo.
+
+
+## EFS vs EFS
+- Volúmenes EBS:
+	- Una instancia (excepto multi-attach io1/io2).
+	- Están disponibles para sólo la AZ que seleccionamos.
+	- **gp2:** IO crece si el tamaño del disco crece.
+	- **gp3 e io1:** Puede crecer el IO independientemente.
+	- Para migrar un volumen EBS a través de otro AZ:
+		- Tomar un snapshot.
+		- Restaurar el snapshot en otra AZ.
+		- Los backups de BS usan IO y no deberías de ejecutarlos mientras tu aplicación tiene mucho tráfico.
+		- Los volúmenes EBS raíz son eliminados por defecto cuando una instancia EC2 es eliminada.
+- EFS:
+	- Montar cientos de instancias en varias AZs.
+	- EFS comparte archivos de sitios web (WordPress).
+	- Sólo para instancias Linux (POSIX).
+	- EFS tiene un precio mayor que EBS.
+	- Puedes usar el EFS-IA leverage para ahorrar costos.
