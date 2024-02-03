@@ -544,3 +544,125 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 ### Target Groups
 - Instancias EC2.
 - Direcciones IP - deben ser IPs privadas.
+
+
+## Sticky Sessions (afinidad de sesión)
+
+- Es posible implementar esta afinidad para que el mismo cliente siempre sea redireccionado a la misma instancia detrás de un balanceador de carga.
+- Esto funciona para Classic Load Balancer, Application Load Balancer y Network Load Balancer.
+- La "cookie" es usada para esto, tiene una fecha de expiración que nosotros podemos controlar.
+- Caso de uso: Estar seguros que el usuario no pierda sus datos de sesión.
+- Esto podría causar que la carga en nuestras instancias no sea equitativa.
+
+### Nombres de cookies
+- Application-base Cookies:
+	- Cookie personalizada.
+	- Generada por el target.
+	- Puede incluir cualquier atributo personalizado requerido por la aplicación.
+	- El nombre de la cookie debe ser diligenciado individualmente por cada target group.
+	- No usar AWSALB, AWSALBAPP o AWSALBTG (reservado para uso por ELB).
+- Application cookie:
+	- Generado por el balanceador de carga.
+	- El nombre de la cookie es AWSALBAPP.
+- Duration-based Cookies
+	- Cookie generada por el balanceador de carga.
+	- El nombre de la cookie es AWSALB para ALB, AWSELB para CLB.
+
+
+## SSL/TLS - Bases
+
+- Un certificado SSL permite el tráfico entre nuestros clientes y nuestro balanceador de carga para ser encriptado en tránsito (encriptación in-flight).
+- SSL se refiere a Secure Sockets Layer, usado para encriptar conexiones.
+- TLS se refiere a Transport Layer Security, el cual es una nueva versión.
+- Actualmente, los certificados TLS son principalmente usados, pero las personas siguen prefiriendo SSL.
+- Los certificados SSL públicos son emitidos por las autoridades de certificados (Certificate Authorities).
+- Los certificados SSL tienen una fecha de expiración (nosotros la configuramos) y deben ser renovados.
+- Podemos administrar nuestros certificados usando ACM (AWS Certificate Manager).
+
+### Server Name Indication (SNI)
+- Resuelve el problema de cargar múltiples certificados SSL en un servidor web.
+- Es un protocolo más nuevo, y requiere que el cliente indique el hostname del target server en el llamado inicial del SSL.
+- El servidor entonces encontrará el certificado correcto, o retornará uno por defecto.
+- **Classic Load Balancer (v1)**:
+	- Soporta sólo un certificado SSL.
+	- Debe usar múltiples CLB para múltiples hostname con múltiples certificados SSL.
+- **Application Load Balancer (v2)**:
+	- Soporta múltiples listeners con múltiples certificados SSL.
+	- Usa SNI para hacerlo funcionar.
+- **Network Load Balancer (v2)**:
+	- Soporta múltiples listeners con múltiples certificados SSL.
+	- Usa SNI para hacerlo funcionar.
+
+
+## Connection Draining
+
+- Connection Draining para CLB.
+- Deregistration Delay para ALB y NLB.
+- Dará un tiempo para completar las solicitudes mientras las instancias están fallando en el chequeo.
+- Detiene el envío de nuevas solicitudes a la instancia EC2 que esta en de-registering.
+- Puede ser deshabilitado.
+
+
+## Auto Scaling Group (ASG)
+
+- En tiempo real, la carga de nuestros sitios web o aplicaciones puede cambiar.
+- En la nube, tú puedes crear e incrementar servidores bastante rápido.
+- La meta de ASG es:
+	- Escalar las instancias EC2 para cuando incrementa la carga.
+	- Remover las instancias cuando la carga decrementa,
+	- Asegurarnos de tener un mínimo y un máximo número de instancias EC2 corriendo.
+	- Automáticamente registra nuevas instancias al balanceador de carga.
+	- Recrear una instancia EC2 en casi de que una previa esté eliminada.
+- ASG es gratis (sólo pagas por las instancias que se crean y usan).
+
+### Group Attributes
+- Un Launch Template:
+	- AMI + tipo de instancia.
+	- EC2 User Data.
+	- Volúmenes EBS.
+	- Security Groups.
+	- SSH Key Pair.
+	- Roles IAM para nuestras instancias EC2.
+	- Información de red y subredes.
+	- Información del balanceador de carga.
+- Mínimo y máximo definido de capacidad.
+- Políticas de escalado.
+
+### Alarmas CloudWatch y Scaling
+- Es posible escalar ASG basado en alarmas de CloudWatch.
+- Una alarma monitorea una métroca (tales como promedio de CPU, o una métrica personalizada).
+- Las métricas como promedio de CPU son computadas por las instancias ASG.
+- Basado en la alarma:
+	- Podemos crear políticas de incremento para nuestras instancias.
+	- Podemos crear políticas de eliminación para nuestras instancias.
+
+### Políticas de escalada
+- Escalado dinámico:
+	- **Target Tracking Scaling:**
+		- Simple de configurar.
+		- Ejemplo: Queremos un promedio de ASG CPU del 40%.
+	- **Simple / Step Scaling:**
+		- Cuando una alarma de CloudWatch es ejecutada (por ejemplo CPU > 70%) añadir 2 unidades.
+		- Cuando una alarma de CloudWatch es ejecutada (por ejemplo CPU < 30%) entonces eliminar 1.
+- **Scheduled Scaling:**
+	- Anticipar una base de escalada en patrones de uso conocidos.
+	- Ejemplo: Incrementar la capacidad mínima de 10 a 5 de la tarde los Viernes.
+- **Predictive scaling:** Continuamente hace escalado  dependiendo de la carga.
+
+#### Buenas métricas para escalada
+- **CPUUtilization:** Promedio de uso de CPU en nuestras instancias.
+- **RequestCountPerTarget:** Estar seguros de que el número de solicitudes por instancia EC2 sea estable.
+- **Average Network In / Out:** Si tu aplicación es basada en redes.
+- Cualquier métrica personalizada (podemos usarlas con CloudWatch).
+
+### Scaling Cooldowns
+- Después de que una actividad de escalada pasa, entramos en el periodo de cooldown (por defecto 300 segundos).
+- Durante el periodo de cooldown, el ASG no lanzará o terminará instancias adicionales (para permitir estabilizarse a las métricas).
+- **Advertencia:** Usar una AMI lista para reducir el tiempo de configuración y así poder atender solicitudes rápidamente y reducir el período de cooldown.
+
+
+## Instance Refresh
+
+- El objetivo es actualizar nuestro Launch Template y entonces recrear todas las instancias EC2.
+- Para esto necesitamos usar la función Instance Refresh nativa.
+- Se puede setear un mínimo de porcentaje para nuestro sistema healthy.
