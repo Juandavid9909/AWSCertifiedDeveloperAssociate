@@ -392,7 +392,7 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 	- Elástico - automáticamente escala basado en las cargas de trabajo.
 
 
-## EFS vs EFS
+## EBS vs EFS
 - Volúmenes EBS:
 	- Una instancia (excepto multi-attach io1/io2).
 	- Están disponibles para sólo la AZ que seleccionamos.
@@ -409,3 +409,138 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 	- Sólo para instancias Linux (POSIX).
 	- EFS tiene un precio mayor que EBS.
 	- Puedes usar el EFS-IA leverage para ahorrar costos.
+
+
+# Escabilidad y alta disponibilidad
+
+- Escalabilidad significa que una aplicación o sistema puede manejar mayores cargas adaptándose.
+- Hay 2 tipos de escalabilidad:
+	- Escalabilidad vertical.
+	- Escalabilidad horizontal (elasticidad).
+- Escalabilidad está conectada pero es diferente con la alta disponibilidad.
+
+
+## Escalabilidad vertical
+
+- Significa incrementar el tamaño de la instancia.
+- Por ejemplo, nuestra aplicación corre en una instancia t2.micro.
+- Escalar esta aplicación verticalmente significa correrla en una t2.large.
+- La escalabilidad vertical es muy común para los sistemas no distribuidos, tales como una base de datos.
+- RDS, ElastiCache son servicios que pueden escalar verticalmente.
+- Hay límites usualmente de cuánto puedes escalar verticalmente (límites de hardware).
+
+
+## Escalabilidad horizontal
+
+- Significa incrementar el número de instancias o sistemas para nuestra aplicación.
+- Escalabilidad horizontal implica sistemas distribuidos.
+- Es muy común para aplicaciones web y aplicaciones modernas.
+- Es fácil escalar horizontalmente gracias a las ofertas de cloud como Amazon EC2.
+
+
+## Alta disponibilidad
+
+- Usualmente va de la mano con la escalabilidad horizontal.
+- Significa correr nuestra aplicación o sistema en al menos 2 data centers (zonas de disponibilidad).
+- El objetivo de esta es lograr mantenerse cuando un data center se pierde.
+- La alta disponibilidad puede ser pasiva (parar RDS con múltiples AZ por ejemplo).
+- También puede ser activa (para escalabilidad horizontal).
+
+
+# ELB
+
+## ¿Por qué usar balanceadores de carga?
+
+- Distribuye la carga en múltiples instancias.
+- Expone un sólo punto de acceso (DNS) de nuestra aplicación.
+- Manejo más fácil de fallas en las instancias.
+- Hace chequeos regulares de nuestras instancias.
+- Provee la terminación SSL (HTTPS) para nuestros sitios web).
+- Alta disponibilidad entre las zonas.
+- Tráfico público separado del tráfico privado.
+- Un ELB es un balanceador de carga administrado.
+	- AWS garantiza que va a estar funcionando.
+	- AWS se preocupa por las actualizaciones, mantenimiento y alta disponibilidad.
+	- AWS provee sólo unas opciones de configuración.
+- Cuesta menos que armar nuestro propio balanceador de carga, pero va a ser mucho más eficiente al final.
+- Está integrado con muchos servicios que AWS ofrece:
+	- EC2, EC2 Auto Scaling Groups, Amazon ECS.
+	- AWS Certificate Manager (ACM), CloudWatch.
+	- Route 53, AWS WAF, AWS Global Accelerator.
+
+
+## Health Checks
+
+- Los chequeos de los balanceadores de carga son cruciales.
+- Habilitan los balanceadores de carga para saber si las instancias que tienen en tráfico están disponibles para responder solicitudes.
+- Es hecho en un puerto y una ruta (/health es común).
+- Si la respuesta no es 200 (OK), entonces la instancia tiene problemas.
+
+
+## Tipos de balanceadores de carga
+
+- Hay 4 tipos de balanceadores de carga en AWS.
+- **Classic Load Balancer** (v1 - generación anterior), acepta HTTP, HTTPS, TCP y SSL (TCP), ya no disponible.
+- **Application Load Balancer** (v2 - nueva generación), acepta HTTP, HTTPS, WebSocket.
+- **Network Load Balancer** (v2 - nueva generación), acepta TCP, TLS (TCP), UDP.
+- **Gateway Load Balancer**.
+
+
+## Application Load Balancer (ALB)
+
+- Es capa 7 (HTTP).
+- Balancea carga de múltiples aplicaciones HTTP a través de máquinas (target groups).
+- Balancea múltiples aplicaciones en la misma máquina (por ejemplo contenedores).
+- Soporte para HTTP/2 y WebSocket.
+- Soporta redirecciones (desde HTTP o HTTPS por ejemplo).
+- Tablas de routing para diferentes target groups:
+	- Routing basado en el path en la URL.
+	- Routing basado en el hostname en la URL.
+	- Routing basado en Query String, Headers.
+- Es genial para microservicios y aplicaciones basadas en contenedores (por ejemplo Docker y Amazon ECS).
+- Tiene un puerto de mapeo para redirigir a un puerto dinámico en ECS.
+- En comparación, necesitaríamos múltiples Classic Load Balancers (ya no disponible) por aplicación.
+
+### Target Groups
+- Instancias EC2 (pueden ser administradas por un grupo de auto escalada) - HTTP.
+- Tareas ECS (administrado por el mismo ECS) - HTTP.
+- Funciones Lambda - solicitudes HTTP traducidas en un evento JSON.
+- Direcciones IP - deben ser IPs privadas.
+
+### Bueno saber
+- Hostname fijo (XXX.region.rlb.amazonaws.com).
+- Los servces de aplicación no ven la IP del cliente directamente.
+	- La verdadera IP del cliente es insertada en el header X-Forwarded-For.
+	- También podemos obtener el puerto (X-Forwarded-Port) y el proto (X-Forwarded-Proto).
+
+
+## Network Load Balancer (v2)
+
+- Son capa 4 y nos permiten:
+	- Utilizar tráfico TCP y UDP en nuestras instancias.
+	- Responde a millones de solicitudes por segundos.
+	- Menos latencia (100ms vs 400ms de ALB).
+- NLB tiene una IP estática por AZ, y soporta asignar IP elásticas.
+- NLB son usadas par el rendimiento extremo, con tráfico TCP o UDP.
+- No incluído en el AWS free tier.
+
+### Target Groups
+- Instancias EC2.
+- Direcciones IP - deben ser IPs privadas.
+- Application Load Balancer.
+- Health Checks soportan los protocolos TCP, HTTP y HTTPS.
+
+
+## Gateway Load Balancer
+
+- Despliega, escala y administra una flota de dispositivos virtuales de red de terceros en AWS.
+- Por ejemplo Firewalls, detección de intrusión y sistemas de prevención, manipulación de payloads, etc.
+- Trabaja en capa 3 (capa de red) - IP Packets.
+- Combina las siguientes funciones:
+	- Transparent Network Gateway - una entrada/salida para todo el tráfico.
+	- Load Balancer - distribuye el tráfico en nuestros dispositivos virtuales.
+- Usa el protocolo GENEVE en el puerto 6081.
+
+### Target Groups
+- Instancias EC2.
+- Direcciones IP - deben ser IPs privadas.
