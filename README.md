@@ -836,3 +836,44 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 - Write-through es usualmente combinado con Lazy Loading para los queries or cargas de trabajo que se benefician desde esta optimización.
 - TTL es usualmente no una mala idea, excelto cuando tu usas Write-through. Agrega un valor sensible a tu aplicación.
 - Sólo cachear los datos que tiene sentido (perfiles de usuario, blogs, etc).
+
+
+# ¿Qué es DNS?
+
+- Domain Name System se encarga de traducir un hostname amigable para las personas en la IP de una máquina.
+- www.google.com = 172.217.18.36.
+- DNS es una estructura de nombre jerárquica.
+
+
+## Terminología
+
+- Top Level Domain (TLD): .com, .us, .in, .gov, .org...
+- Second Level Domain (SLD): amazon.com, google.com...
+
+
+# Route 53
+
+- Es altamente disponible, escalable y completamente administrado y Authoritative DNS.
+	- Authoritative = el cliente (nosotros) podemos actualizar los DNS.
+- Habilidad de revisar el estado de nuestros recursos.
+- Es el único servicio de AWS que provee 100% de disponibilidad SLA.
+- 53 es una referencia al puerto tradicional DNS.
+
+
+## Tipos de registros
+
+- **A** - mapea un hostname a una IPv4.
+- **AAAA** - mapea un hostname a una IPv6.
+- **CNAME** - mapea un hostname hacia otro hostname.
+	- El target es un nombre de dominio el cual debe tener un registro A o AAAA.
+	- No se puede crear un registro CNAME al inicio de un namespace DNS.
+	- Ejemplo: no se puede crear para example.com, pero sí para www.example.com.
+- **NS** - Name Servers para la zona de hosting.
+
+
+## Hosted Zones
+
+- Un contenedor de registros que define cómo es la ruta de tráfico hacia un dominio y sus subdominios.
+- **Public Hosted Zones** - contiene registros que especifican cómo es la ruta de tráfico en Internet (nombres de dominio públicos).
+- **Private Hosted Zones** - contiene registros que especifican cómo es la ruta de tráfico entre uno y más VPCs (nombres de dominio privados).
+- Se paga $0.50 por mes por zona de hosting.
