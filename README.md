@@ -666,3 +666,173 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 - El objetivo es actualizar nuestro Launch Template y entonces recrear todas las instancias EC2.
 - Para esto necesitamos usar la función Instance Refresh nativa.
 - Se puede setear un mínimo de porcentaje para nuestro sistema healthy.
+
+
+# RDS
+
+- Es un servicio de bases de datos relacionales.
+- Es un servicio de bases de datos administrado para usar SQL como el lenguaje de nuestros queries.
+- Nos permite crear bases de datos en la nube que pueden ser administradas por AWS:
+	- Postgres.
+	- MySQL.
+	- MariaDB.
+	- Oracle.
+	- Microsoft SQL Server.
+	- Aurora (base de datos propia de AWS).
+
+
+## ¿Por qué usar RDS y no desplegar nuestra base de datos en EC2?
+
+- RDS es un servicio administrado:
+	- Provisionamiento automátizado, parcheo del sistema operativo.
+	- Backups continuos y restauración en un tiempo específico.
+	- Dashboards para monitoreo.
+	- Read replicas para un rendimiento de lectura mejorado.
+	- Configuración multi AZ para DR (Disaster Recovery).
+	- Ventanas de mantenimiento para actualizaciones.
+	- Capacidad de escalado vertical y horizontal.
+	- Almacenamiento con backup por EBS (gp2 o io1).
+- No se puede acceder a nuestras instancias con SSH.
+
+
+## Storage Auto Scaling
+
+- Nos ayuda a incrementar nuestro almacenamiento en nuestra instancia RDS automáticamente.
+- Cuando RDS detecta que nos estamos quedando sin almacenamiento, el servicio escala automáticamente.
+- Evitar escalamiento manual para nuestro almacenamiento de base de datos.
+- Tienes que setear un máximo de almacenamiento (límite máximo para almacenamiento de base de datos).
+- Automáticamente modifica el almacenamiento si:
+	- El espacio libre es menor al 10% del almacenamiento configurado.
+	- Bajo almacenamiento en al menos 5 minutos.
+	- Han pasado 6 horas desde la última modificación.
+- Son muy útiles para aplicaciones con cargas de trabajo impredecibles.
+
+
+## Read Replicas
+
+- Son parecidas al maestro esclavo en bases de datos ya que nos permite tener backups de sólo lectura que tendrán la misma información que nuestra base de datos principal.
+- Se pueden tener hasta 15 Read Replicas.
+- Dentro de un AZ, entre AZ o entre regiones.
+- La réplica es asíncrona, es decir que las lecturas son eventualmente consistentes.
+- Las réplicas pueden ser promovidas a su propia base de datos.
+- Las aplicaciones deben actualizar el connection string para aprovechar las réplicas de lectura.
+
+### Costos de red
+- En AWS hay un costo de red cuando la data va deste un AZ a otro.
+- Para las Read Replicas de RDS en la misma región tú no pagas ese monto.
+
+
+## Multi AZ (Disaster Recovery)
+
+- Replicación síncrona, es decir que inmediatamente nuestra aplicación escribe algo en nuestra base de datos principal, esto será replicado en nuestra réplica.
+- Un nombre DNS - la aplicación automáticamente apuntará a la réplica si por ejemplo nuestra base de datos principal falla.
+- Incrementamos la disponibilidad.
+- Conmutación de error en caso de pérdida de AZ, pérdida de red, o fallas en almacenamiento o nuestra instancia.
+- No hay intervención manual en las aplicaciones.
+- No usado para escalar.
+- Podemos montar nuestras Read Replicas como Multi AZ si queremos.
+
+
+## ¿Cómo pasar de Single-AZ a Multi-AZ?
+
+- No se requiere detener la base de datos, por lo que es una operación de cero tiempo de inactividad.
+- Sólo hacemos clic en "Modify" en la base de datos.
+- Lo siguiente que sucederá internamente es:
+	- Será tomado un snapshot (backup).
+	- Una nueva base de datos es restaurada desde el snapshot en un nuevo AZ.
+	- La sincronización es establecida entre las 2 bases de datos.
+
+
+## Amazon Aurora
+
+- Es una tecnología propia de AWS (no es open source).
+- Postgres y MySQL son soportadas como una base de datos Aurora (esto significa que los drivers funcionará si Aurira es una base de datos Postgres o MySQL).
+- Aurora es "AWS cloud optimized" y tiene 5x rendimiento mejorado sobre MySQL en RDS, y sobre 3x el rendimiento de Postgres en RDS.
+- El almacenamiento de Aurora crece en incrementos de 10GB automáticamente, y puede hacerlo hasta 128TB.
+- Puede tener hasta 15 réplicas y el proceso de replicación es más rápido que el de MySQL.
+- Aurora cuesta más que RDS (20% más) pero es más eficiente.
+
+### Alta disponibilidad y Read Scaling
+- 6 copias de tu data entre 3 AZ:
+	- 4 copias de 6 necesitadas para escritura.
+	- 3 copias de 6 necesarias para lectura.
+	- El almacenamiento está entre 100s de volúmenes.
+- Una instancia Aurora hace las escrituras (master).
+- Automático failover para la master en menos de 30 segundos.
+- Soporta replicación entre regiones.
+
+### Características de Aurora
+- Failover automático.
+- Backup y recuperación
+- Isolación y seguridad.
+- Cumplimiento de la industria.
+- Botón push para escalado.
+- Parcheo automatizado con 0 tiempo de inactividad.
+- Monitoreo avanzado.
+- Mantenimiento de rutina.
+- Backtrack: Restaurar datos en cualquier punto en el tiempo sin usar backups.
+
+
+## Seguridad en RDS y Aurora
+
+- **At-rest encryption**:
+	- La base de datos maestra y sus réplicas son encriptadas con AWS KMS - debe ser definido al momento de lanzarlas.
+	- Si la master no está encriptada, entonces las réplicas tampoco lo estarán.
+	- Para encriptar una base de datos no encriptada, hay que tomar un snapshot de la BD y restaurarla como encriptada.
+- **In-flight encryption:** TLS-ready por defecto, usa los certificados raíz de client-side de AWS TLS.
+- **IAM Authentication:** Roles IAM para conectaros a nuestra base de datos (en vez de nombre de usuario y contraseña).
+- **Security Groups:** Controla el acceso de red a las instancias.
+- No disponible SSH excepto en RDS personalizadas.
+- Los logs de auditoría pueden ser habilitados y enviados a CloudWatch para retención.
+
+
+## Proxy RDS
+
+- Proxy de base de datos completamente administrado por RDS.
+- Le permite a las aplicaciones acceder y compartir las conexiones de BD establecidas en la base de datos.
+- Eficiencia de la base de datos mejorada reduciendo el estrés en los recursos de bases de datos (por ejemplo CPU, RAM, etc) y minimiza las conexiones abiertas (y timeouts).
+- Serverless, autoscaling y alta disponibilidad (multi-AZ).
+- Tiempo de failover reducido en RDS y Aurora de hasta un 66%.
+- Soporta RDS (MySQL, PostgreSQL, MariaDB, MS SQL Server) y Aurora (MySQL y PostgreSQL).
+- No hay cambio de código requerido para la mayoría de aplicaciones.
+- Obliga la autenticación IAM para nuestra base de datos, y guarda las credenciales de forma segura in AWS Secrets Manager.
+- Proxy RDS es nunca accesible publicamente (debe ser accedido desde VPC).
+
+
+## ElastiCache
+
+- Del mismo modo que RDS administra las bases de datos relacionales...
+- ElastiCache administra Redis o Memcached.
+- Caches son bases de datos en memoria con un rendimiento realmente alto y baja latencia.
+- Ayuda a reducir la carga de las bases de datos de cargas de trabajo de lectura intensivas.
+- Ayuda hacer tu aplicación stateless.
+- AWS se preocupa por el mantenimiento y parcheo del sistema operativo, optimizaciones, configuración, monitoreo y la recuperación en fallas y backups.
+- Usar ElastiCache implica muchos cambios en el código de la aplicación.
+
+### Redis vs Memcached
+#### Redis
+- Multi AZ con failover automático.
+- Las Read Replicas escalan lecturas y tienen alta disponilidad.
+- Durabilidad de datos usando la persistencia AOF.
+- Opciones de backup y restauración.
+- Soporta Sets y Sets ordenados.
+
+#### Memcached
+- Múltiples nodos de partición de datos.
+- No hay alta disponibilidad (replicación).
+- No es persistente.
+- No hay backups ni restauración.
+- Arquitectura multihilos.
+
+### Consideraciones de implementación de caching y estrategias
+- ¿Es seguro cachear datos? Los datos podrían estar no actualizados, eventualmente consistente.
+- ¿ Es efectivo el caching para nuestros datos?
+	- Patrón: Cambios de datos lentos, pocas key son frecuentemente necesarias.
+	- Antipatrones: Cambios de datos rápidamente, todos los key frecuentemente necesarios.
+- Es buena la data estructurada para el caching?
+
+#### Palabras finales de wisdom
+- Lazy Loading / Cache es fácil de implementar y funciona en muchas situaciones, especialmente en la parte de lectura.
+- Write-through es usualmente combinado con Lazy Loading para los queries or cargas de trabajo que se benefician desde esta optimización.
+- TTL es usualmente no una mala idea, excelto cuando tu usas Write-through. Agrega un valor sensible a tu aplicación.
+- Sólo cachear los datos que tiene sentido (perfiles de usuario, blogs, etc).
