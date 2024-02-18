@@ -982,3 +982,123 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 - Se usa cuando se hace enrutamiento de tráfico para múltiples recursos.
 - Route 53 retorna múltiples valores/recursos.
 - Puede ser asociado con Health Check.
+
+
+# VPC
+
+- Es algo que debemos conocer en profundidad para las certificaciones de AWS.
+- Es importante conocer para esta certificación:
+	- VPC, subredes, internet gateways y NAT gateways.
+	- Grupos de seguridad, Red ACL (NACL), flujos de logs VPC.
+	- VPC Peering, VPC Endpoints.
+	- Site to Site VPN y conexión directa.
+
+
+## ¿Qué es VPC?
+
+- VPC es una red privada para publicar nuestros recursos (recursos regionales).
+- Las subredes nos permiten particionar nuestra red dentro de la VPC (recurso por zona de disponibilidad).
+- Una subred pública es una subred que es accesible desde internet.
+- Una subred privada es una subred que no es accesible desde internet.
+- Para definir el acceso a internet y entre subredes, usamos **Route Tables**.
+
+
+## Internet Gateway y NAT Gateways
+
+- **Internet Gateway** ayuda a nuestras instancias VPC a conectarse a internet.
+- Las subredes públicas tienen una ruta al internet gateway.
+- **NAT Gateways** (administrados por AWS) y **NAT Instances** permiten a nuestras instancias a conectarse a subredes privadas para acceder a internet mientras permanecen privadas.
+
+
+## Network ACL y grupos de seguridad
+
+- **NACL (Network ACL)**:
+	- Un firewall que controla el tráfico desde y hacia la subred.
+	- Puede tener reglas para permitir o denegar.
+	- Están conectados al nivel de Subred.
+	- Las reglas sólo incluyen direcciones IP.
+- **Grupos de seguridad**:
+	- Un firewall que controla el tráfico desde y hacia una ENI / Instancia EC2.
+	- Puede tener reglas sólo para permitir.
+	- Las reglas incluyen direcciones IP y otros grupos de seguridad.
+
+### Network ACLs vs Grupos de seguridad
+| Grupo de seguridad | NACL |
+|--|--|
+| Opera a nivel de instancia. | Opera a nivel de subred. |
+| Soporta sólo reglas para permitir. | Soporta reglas para permitir y denegar. |
+| Es stateful: El tráfico de retorno es automáticamente permitido, independientemente de las reglas. | Es stateless: El tráfico de retorno debe estar explícitamente permitido por las reglas.  |
+| Se evalúan todas las reglas antes de decidir hacia donde se permite el tráfico. | Se procesan las reglas por orden cuando se decide hacia dónde se permite el tráfico. |
+| Se aplica a una instancia sólo si alguien especifica el grupo de seguridad cuando se lanza una instancia, o se asocia un grupo de seguridad con la instancia luego. | Automáticamente aplica a todas las instancias en la subred a la que está asociada. |
+
+
+## VPC Flow Logs
+
+- Captura información sobre el tráfico de IP que va hacia nuestras interfaces:
+	- **VPC** Flow Logs.
+	- **Subnet** Flow Logs.
+	- **Elastic Network Interface** Flow Logs.
+- Ayuda a monitorear y controlar los problemas de conectividad, por ejemplo:
+	- Subredes a internet.
+	- Subredes a subredes.
+	- Internet a subredes.
+- Captura información de red desde interfaces administradas por AWS también: Elastic Load balancers, ElastiCache, RDS, Aurora, etc.
+- Los datos de VPC Flow Logs pueden ir a S3, CloudWatch Logs, y Kinesis Data Firehose.
+
+
+## VPC Peering
+
+- Conecta 2 VPC de forma privada usando la red de AWS.
+- Hace que luego se comporten como si estuvieran en la misma red.
+- No debe haber overlapping CIDR (rango de direcciones IP).
+- No es transitiva (debe ser establecida por cada VPC que necesita comunicarse con la otra).
+
+
+## VPC Endpoints
+
+- Nos permiten conectarnos a servicios AWS usando una red privada en vez de una red pública www.
+- Esto nos da mayor seguridad y menos latencia para acceder a los servicios AWS.
+- VPC Endpoint Gateway sólo para S3 y DynamoDB.
+- VPC Endpoint Interface para el resto.
+- Sólo se usa dentro de nuestra VPC.
+
+
+## VPN Site to Site y conexión directa
+
+- **Site to Site VPN**:
+	- Conecta una VPN on-premises a AWS.
+	- La conexión es automáticamente encriptada.
+	- Pasa por la internet pública.
+- **Direct Connect (DX)**:
+	- Establece una conexión física entre on-premises y AWS.
+	- La conexión es privada, segura y rápida.
+	- Pasa por una red privada.
+	- Toma al menos un mes establecerla.
+
+
+## Últimos comentarios
+
+- **VPC:** Virtual Private Cloud.
+- **Subnets:** Asociadas a una zona de disponibilidad específica, partición de red de la VPC.
+- **Internet Gateway:** A nivel de VPC, provee acceso a internet.
+- **NAT Gateway / Instances:** Brinda acceso a internet a subredes privadas.
+- **NACL:** Stateless, reglas de subred para entrada y salida.
+- **Grupos de seguridad:** Stateful, opera en instancias EC2 o ENI.
+- **VPC Peering:** Conecta 2 VPC sin superposición de rangos de IP, no es transitivo.
+- **VPC Endpoints:** Provee acceso privado a servicios AWS en la VPC.
+- **VPC Flow Logs:** Logs de tráfico de red.
+- **Site to Site VPN:** VPN a través del internet público entre datacenters on-premises y AWS.
+- **Direct Connect:** Conexión privada directa a AWS.
+
+
+## Three Tier Architecture
+
+![Imagen Three Tier Architecture](https://miro.medium.com/v2/resize:fit:871/1*kJ9n3PVWJQrnScK1Q9O_DA.png)
+
+### LAMP Stack en EC2
+- **Linux:** Sistema operativo para instancias EC2.
+- **Apache:** Servidor web que corre en Linux (EC2).
+- **MySQL:** Base de datos en RDS.
+- **PHP:** Lógica de aplicación (corriendo en EC2).
+- Se puede agregar Redis / Memcached (ElastiCache) para incluir tecnología de cacheo.
+- Para guardar datos de la aplicación y software de forma local: Disco EBS (root).
