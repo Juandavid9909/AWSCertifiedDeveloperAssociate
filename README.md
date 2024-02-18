@@ -392,7 +392,7 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 	- Elástico - automáticamente escala basado en las cargas de trabajo.
 
 
-## EBS vs EFS
+## EBFS vs EFS
 - Volúmenes EBS:
 	- Una instancia (excepto multi-attach io1/io2).
 	- Están disponibles para sólo la AZ que seleccionamos.
@@ -877,3 +877,108 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 - **Public Hosted Zones** - contiene registros que especifican cómo es la ruta de tráfico en Internet (nombres de dominio públicos).
 - **Private Hosted Zones** - contiene registros que especifican cómo es la ruta de tráfico entre uno y más VPCs (nombres de dominio privados).
 - Se paga $0.50 por mes por zona de hosting.
+
+
+## CNAME vs Alias
+
+- Los recursos de AWS (Balanceadores de carga, CloudFront) exponen un hostname de AWS, por ejemplo lb1-1234.us-east-2.elb.amazonaws.com y tú quieres myapp.mydomain.com.
+- CNAME:
+	- Apunta un hostname a cualquier otro hostname (app.mydomain.com => blabla.anything.com).
+	- Sólo para dominios que no son de raíz (aka.someting.mydomain.com).
+- Alias:
+	- Apunta un hostname a un recurso AWS (app.mydomain.com => blabla.amazonaws.com).
+	- Funciona para dominios raíz y no raíz (aka.mydomain.com).
+	- Libre de cargos.
+	- Chequeos health nativos.
+
+
+## Servicios AWS que pueden ser asociados a un Alias
+
+- Elastic Load Balancers.
+- CloudFront Distributions.
+- API Gateway.
+- Ambientes Elastic Beanstalk.
+- S3 Websites.
+- VPC Interface Endpoints.
+- Global Accelerator.
+- Route 53 en la misma zona de hosteo.
+
+
+## Políticas de enrutamiento
+
+- Define cómo responde Route 53 a queries DNS.
+- No confundirnos con la palabra "Routing":
+	- No es lo mismo como un routing de un balanceador de carga que enruta el tráfico.
+	- DNS no enrunta ningún tráfico. sólo responde a queries DNS.
+- Route 53 soporta las siguientes políticas de enrutamiento:
+	- Simple.
+	- Weighted.
+	- Failover.
+	- Latency based.
+	- Geolocation.
+	- Multi-Value Answer.
+	- Geoproximity (usando la feature Route 53 Traffic Flow).
+
+### Simple
+- Enruta el tráfico a un único recurso.
+- Puede especificar múltiples valores en el mismo registro.
+- Si múltiples valores son retornados, uno random es seleccionado por el cliente.
+- Cuando Alias está activado, sólo podemos especificar un recurso de AWS.
+- No puede ser asociado a Health Checks.
+
+### Weighted
+- Controla el porcentaje de las solicitudes que van a cada uno de los recursos.
+- Asignar un peso relativo a cada recurso:
+	- $traffic(\%) = \frac{Weight for a specific record}{Sum of all the weights for all records}$.
+	- Los pesos no deben superar el 100%.
+- Los registros DNS deben tener el mismo nombre y tipo.
+- Puede ser asociado con Health Checks.
+- Casos de uso: balanceo de carga entre regions, testing de nuevas versiones de aplicaciones, etc.
+- Asignar un peso de 0 a un registro para detener el envío de tráfico a un recurso.
+- Si todos los registros tienen un peso de 0, entonces todos los registros van a ser retornados equitativamente.
+
+### Latency based
+- Redirecciona al recurso que tiene la menor latencia hacia nosotros.
+- Muy útil cuando la latencia para usuarios es una prioridad.
+- La latencia está basada en el tráfico entre usuarios y Regiones AWS.
+- Puede ser asociado con Health Checks (tiene capa de failover).
+
+### Health Checks
+- Los Health Checks HTTP están sólo para recursos públicos.
+- Health Check => DNS Failover automatizado:
+	- Health Checks que monitorean un endpoint (aplicación, servidor, otro recurso AWS).
+	- Health Checks que monitorean otros Health Checks (Health Checks calculados).
+	- Health Checks que monitorean alarmas CloudWatch (muy útil para recursos privados).
+
+### Geolocation
+- Este enrutamiento está basado en la ubicación del usuario.
+- Especifica la ubicación por continente, país o por estado.
+- Se debe crear un registro "Default" (en caso de que no haga match con ninguna ubicación).
+- Casos de uso: Ubicación de sitio web, restringir distribución de contenido, balanceo de carga.
+- Puede ser asociado con Health Checks.
+
+### Geoproximity
+- Enrutar tráfico a nuestros recursos basado en la ubicación geográfica de usuarios y recursos.
+- Capacidad de desviar más tráfico a los recursos según el sesgo definido.
+- Para cambiar el tamaño de la región geográfica, se especifican valores bias:
+	- Para expandir (1 a 99) - más tráfico al recurso.
+	- Para disminuir (-1 a -99) - menos tráfico al recurso.
+- Los recursos pueden ser:
+	- Recursos AWS (especificar la región AWS).
+	- Recursos no AWS (especificar latitud y longitud).
+- Debemos usar Route 53 Traffic Flow (avanzado) para usar esta opción.
+
+### Flujo de tráfico
+- Simplifica el proceso de creación y mantenimiento de registros en configuraciones largas y complejas.
+- Editor visual para administrar árboles de decisión de enrutamiento complejos.
+- Las configuraciones pueden ser guardadas como una política de flujo de tráfico.
+
+### Enrutamiento basado en IP
+- Se hace basado en las direcciones IP de los clientes.
+- Se provee una lista de CIDRs para nuestros clientes y los endpoints correspondientes.
+- Casos de uso: Optimizar el rendimiento, reducir los costos de red.
+
+### Multi-Value
+- Se usa cuando se hace enrutamiento de tráfico para múltiples recursos.
+- Route 53 retorna múltiples valores/recursos.
+- Puede ser asociado con Health Check.
