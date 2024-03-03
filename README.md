@@ -1102,3 +1102,92 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 - **PHP:** Lógica de aplicación (corriendo en EC2).
 - Se puede agregar Redis / Memcached (ElastiCache) para incluir tecnología de cacheo.
 - Para guardar datos de la aplicación y software de forma local: Disco EBS (root).
+
+
+# S3
+
+- Es uno de los bloques de construccion principales de AWS.
+- Es conocido como un almacenamiento "infinitamente escalable".
+- Muchos sitios web utilizan Amazon S3 como su base.
+- Muchos servicios de AWS utilizan S3 como una integración.
+
+
+## Casos de uso
+
+- Backups y almacenamiento.
+- Disaster Recovery.
+- Guardar archivos.
+- Almacenamiento de nube híbrido.
+- Hosting de aplicaciones.
+- Análisis de big data.
+- Sitios web estáticos.
+
+
+## Buckets
+
+- Amazon S3 permite a las personas almacenar objetos (archivos) en buckets (directorios).
+- Los buckets deben tener un nombre unico globalmente (entre todas las regiones de todas las cuentas).
+- Los buckets son definidos a nivel de región.
+- S3 se ve como un servicio global, pero los buckets son creados en una región.
+- A tener en cuenta para el nombramiento:
+	- No uppercase, no underscore.
+	- Longitud de 3 a 63 caracteres.
+	- No una IP.
+	- Debe iniciar con letras minúsculas o números.
+	- No debe iniciar con el prefijo **xn- -**.
+	- No debe finalizar con el sufijo **-s3alias**.
+
+
+## Objects
+
+- Los objetos (archivos) tienen una llave.
+- La llave (key) es la ruta completa:
+	- s3://my-bucket/my-file.txt.
+- La key es compuesta de un prefijo + nombre del objeto.
+	- s3://my-bucket/my_folder1/another_folder/my_file.txt.
+- No está el concepto de directorios entre buckets.
+- Sólo llaves con nombres muy largos que contienen slashes.
+- Los valores de los objetos son el contenido del cuerpo:
+	- El tamaño máximo de los objetos es 5TB (5000GB).
+	- Si se está cargando más de 5GB, se debe usar "multi-part upload".
+- Metadata (lista de textos keys / value pairs - sistema o metadata de usuario).
+- Tags (key unicode / value pair) - útil para seguridad / ciclo de vida.
+- Version ID (si el versionamiento esta habilitado).
+
+
+## Seguridad - políticas de buckets
+
+- **User-Based**:
+	- Políticas IAM - cuáles llamados API deben ser permitidos para un usuario específico desde IAM.
+- **Resource-Based**:
+	- Políticas Bucket - reglas asignadas al bucket desde la consola de S3 - permite entre cuentas.
+	- Lista de control de acceso de objeto (ACL) -finer grain (puede ser deshabilitado).
+	- Lista de control de acceso de bucket (ACL) - menos común (puede ser deshabilitado).
+- **Nota**: Un usuario de IAM puede acceder a un objeto S3 si:
+	- Los permisos de usuario IAM lo permiten o la política del recurso lo permite.
+	- Y no hay denegación explícita.
+- **Encriptación**: Encripta los objetos en Amazon S3 usando llaves de encriptación.
+- Las políticas al final. sonun JSON:
+	- **Resources:** Buckets y objetos.
+	- **Effect:** Allow / Deny.
+	- **Actions:** Conjunto de APIs que se permiten o bloquean.
+	- **Principal:** La cuenta o el usuario al que se le aplica la política.
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "PublicRead",
+			"Effect": "Allow",
+			"Principal": "*",
+			"Action": [
+				"s3:GetObject"
+			],
+			"Resource": [
+				"arn:aws:s3:::examplebucket/*"
+			]
+		}
+	]
+}
+```
