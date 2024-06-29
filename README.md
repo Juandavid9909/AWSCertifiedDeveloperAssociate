@@ -1167,7 +1167,7 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 	- Los permisos de usuario IAM lo permiten o la política del recurso lo permite.
 	- Y no hay denegación explícita.
 - **Encriptación**: Encripta los objetos en Amazon S3 usando llaves de encriptación.
-- Las políticas al final. sonun JSON:
+- Las políticas al final son un JSON:
 	- **Resources:** Buckets y objetos.
 	- **Effect:** Allow / Deny.
 	- **Actions:** Conjunto de APIs que se permiten o bloquean.
@@ -1191,3 +1191,115 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 	]
 }
 ```
+
+
+## Website Hosting
+
+- S3 puede hostear sitios web estáticos y dar acceso a ellos en internet.
+- La URL del sitio web será alguna de las siguientes (dependiendo de la región):
+	- http://bucket-name.s3-website-aws-region.amazonaws.com
+	- http://bucket-name.s3-website.aws-region.amazonaws.com
+- Si tenemos un error **403 Forbidden**, tenemos que hace agurarnos de que las políticas de nuestro Bucket permiten la lectura al público.
+
+
+## Versionamiento
+
+- Podemos versionar nuestros archivos en Amazon S3.
+- Está habilitado a nivel de Bucket.
+- La misma llave sobreescribirá el cambio de version: 1, 2, 3...
+- La mejor practica es versionar nuestros Buckets.
+	- Protege contra eliminaciones sin intención (habilita el restauramiento de una versión).
+	- Podemos regresar fácilmente a una versión previa.
+- **Nota:**
+	- Cualquier archivo que no tenga una versión antes de habilitar el control de versiones tendrá una versión "nula".
+	- Suspender el versionamiento no elimina la versiones anteriores.
+
+
+## Réplicas (CRR y SRR)
+
+- Se debe habilitar el versionamiento en los buckets de origen y destino.
+- Cross-Region Replication (CRR).
+- Same-Region Replication (SRR).
+- Los buckets pueden estar en diferentes cuentas AWS.
+- La copia es asíncrona.
+- Se deben dar los permisos apropiados IAM a S3.
+- Casos de uso:
+	- CRR - cumplimiento, acceso de baja latencia entre regiones, réplicas entre cuentas.
+	- SRR - agrega logs entre múltiples buckets, replicación en vivo entre cuentas de producción y test.
+- **Nota:**
+	- Despues de habilitar las réplicas, sólo los nuevos objetos son replicados.
+	- Opcionalmente, se pueden replicar objetos existentes usando **S3 Batch Replication**.
+		- Replica objetos existentes y objetos que tuvieron fallas en su replicación.
+	- Para operaciones de eliminación:
+		- Se puede replicar los marcadores delete desde el origen al destino (configuración opcional).
+		- Las eliminaciones con una versión ID no son replicadas (para evitar eliminaciones maliciosas).
+	- No hay "chaining" en la replicación:
+		- Si el bucket 1 tiene réplicas en el bucket 2, que tiene replicación en el bucket 3, entonces los objetos creados en bucket 1 no son replicados en bucket 3.
+
+
+## Clases de almacenamiento
+
+- Amazon S3 Standard - propósitos generales.
+- Anazon S3 Standard - acceso infrecuente (IA).
+- Amazon S3 One Zone - acceso infrecuente.
+- Amazon S3 Glacier Instante Retrieval.
+- Amazon S3 Glacier Flexible Retrieval.
+- Amazon S3 Glacier Deep Archive.
+- Amazon S3 Intelligent Tiering.
+- Puedes cambiar las clases manualmente o usando **S3 Lifecycle configurations**.
+
+### Durabilidad y disponibilidad.
+- Durabilidad:
+	- Alta durabilidad (99.999999999% o 11 9's) de objetos a través de las multiples AZ.
+	- Si se guardan 10.000.000 objetos con Amazon S3, puedes esperar en promedio a incurrir una pérdida de un sólo objeto cada 10.000 años.
+	- Igual para todas las clases de almacenamiento
+- Disponibilidad:
+	- Mide la disponibilidad de un servicio.
+	- Varía dependiendo de la clase de almacenamiento.
+	- Ejemplo: S3 estándar tiene 99.99% de disponibilidad = no disponible 53 minutos al año.
+
+### S3 Standard - propósito general
+- 99.99% de disponibilidad.
+- Usado para acceso de data frecuente.
+- Baja latencia y alto rendimiento.
+- Sostiene 2 fallas simultáneas en las instalaciones.
+- Casos de uso: Análisis Big Data, aplicación de videojuegos, distribución de contenido.
+
+### S3 Standard - acceso infrecuente
+- Para data que es accedida poco frenente, pero requiere rápido acceso cuando se necesita.
+- Menor costo que S3 Standard.
+
+### S3 Standard - acceso infrecuente (IA)
+- 99.99% de disponibilidad.
+- Casos de uso: Recuperación de desastre, backups.
+
+### S3 One Zone - acceso infrecuente
+- Alta durabilidad (99.999999999%) en un sólo AZ, data perdida cuando la AZ se destruye.
+- 99.5% de disponiblidad.
+- Casos de uso: Guardar copias de backups secundario de data on-premise, o data que se puede recrear.
+
+### S3 Glacier
+- Bajo costo en almacenamiento de objetos por archivamiento/backup.
+- Precio: precio por almacenamiento + costo por obtención de objetos.
+
+### S3 Glacier Instant Retrieval
+- Recuperación en milisegundos, ideal para data que es accedida una vez por trimestre.
+- Mínima duración de almacenamiento de 90 días
+
+### S3 Glacier Flexible Retrieval
+- Expedido (1 a 5 minutos), estándar (3 a 5 horas), Bulk (5 a 12 horas).
+- Mínima duración de almacenamiento de 90 días.
+
+### S3 Glacier Deep Archive - para término largo de almacenamiento
+- Estándar (12 horas), Bulk (48 horas).
+- Mínima duración de almacenamiento de 180 horas.
+
+### S3 Intelligent-Tiearing
+- Pequeño monitoreo mensual y tarifa de clasificación automática.
+- Mueve objetos automáticamente entre Access Tiers basado en el uso.
+- No hay cargos de recuperacion en S3 Intelligent-Tiering.
+- Frequent Accesstier (automático): tier por defecto.
+- Infrequent Access tier (automático): objetos no accedidos por 30 días.
+- Archive Instant Access tier (automático): objetos no accedidos por 90 días.
+- Archive Access tier (opcional): configurable desde 90 días hasta 700+ días.
+- Deep Archive Access tier (opcional): configurable desde 180 días hasta 700+ días.
