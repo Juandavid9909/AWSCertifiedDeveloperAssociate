@@ -1303,3 +1303,153 @@ Los volúmenes EBS son caracterizados en tamaño, carga de trabajo e IOPS (I/O O
 - Archive Instant Access tier (automático): objetos no accedidos por 90 días.
 - Archive Access tier (opcional): configurable desde 90 días hasta 700+ días.
 - Deep Archive Access tier (opcional): configurable desde 180 días hasta 700+ días.
+
+
+# AWS CLI, SDK, roles IAM y políticas
+
+## Metadata de instancia EC2 (IMDS)
+
+- AWS EC2 Instance Metadata (IMDS) es muy poderosa pero a la vez una de las opciones menos conocidas por desarrolladores.
+- Permite a las instancias EC2 "aprender sobre ellas mismas" sin usar ningún rol IAM para ese propósito.
+- La URL es http://169.254.169.254/latest/meta-data.
+- Puedes obtener el nombre del rol IAM desde la metadata, pero no puedes obtener la política IAM.
+- Metadata = Information sobre la instancia EC2.
+- Userdata = Lanzar script de la instancia EC2.
+
+### IMDSv2 vs IMDSv1
+- IMDSv1 es accesdida directamente http://169.254.169.254/latest/meta-data.
+- IMDSv2 es más segura y es realizada en 2 pasos.
+	- Obtener el Session Token (validez limitada) - usando headers y PUT `$ TOKEN='curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"'`.
+	- Usando el Session Token en los llamados IMDSv2 - usando encabezados `curl http://169.254.169.254/latest/meta-data/profile -H "X-aws-ec2-metadata-token: $TOKEN"`.
+
+
+## Perfiles AWS CLI
+
+```bash
+# Ver credenciales (se ven todas las creadas)
+cat credentials
+
+# Configurar credenciales
+aws configure
+<Nuestro-Access-Key-ID>
+<Nuestro-Secret-Access-Key>
+<Nombre-Region-Por-Defecto>
+<Formato-Salida>
+
+# Configurar un perfil en específico (puede ser nuevo)
+aws configure --profile my-other-aws-account
+<Nuestro-Access-Key-ID>
+<Nuestro-Secret-Access-Key>
+<Nombre-Region-Por-Defecto>
+<Formato-Salida>
+
+# Ver datos configurados
+cat config
+
+# Listar buckets S3
+aws s3 ls
+
+# Listar buckets S3 desde un perfil específico
+aws s3 ls --profile my-other-aws-account
+```
+
+
+## AWS CLI con MFA
+
+- Para usar MFA con el CLI, debemos crear una sesión temporal.
+- Para hacerlo, debemos ejecutar el llamado al API **STS GetSessionToken**.
+- **aws sts get-session-token** --serial-number arn-de-dispositivo-mfa --token-code codigo-desde-token --duration-seconds 3600.
+
+```json
+// Respuesta
+{
+	"Credentials": {
+		"SecretAccessKey": "secret-access-key",
+		"SessionToken": "temporary-session-token",
+		"Expiration": "expiration-date-time",
+		"AccessKeyId": "access-key-id"
+	}
+}
+```
+
+
+## AWS SDK
+
+- ¿Qué pasaría si necesitamos ejecutar acciones en AWS directamente desde nuestras aplicaciones? (Sin usar el CLI).
+- En estos casos podemos usar el SDK (Software Development Kit).
+- Los SDKs oficiales son:
+	- Java.
+	- .NET.
+	- Node.js.
+	- PHP.
+	- Python (boto3 / botocore).
+	- Go.
+	- Ruby.
+	- C++.
+- Tenemos que usar el SDK cuando programamos para servicios como DynamoDB.
+- Un hecho gracioso... AWS CLI utiliza el SDK de Python (boto3).
+- El examen espera que uno sepa cuándo debe utilizar un SDK.
+- Bueno saber: si no se especifica o configura una región por defecto, entonces us-east-1 sera seleccionada por defecto.
+
+
+## Límites AWS (Quotas)
+
+- Rangos de limites en API:
+	- **DescribeInstances** API para EC2 tiene un límite de 100 llamados por segundo.
+	- **GetObject** en S3 tiene un limite de 5500 GET por segundo por prefijo.
+	- Para errores intermitentes implementar Exponential Backoff.
+	- Para errores consistentes solicitar un aumento del límite máximo del API.
+- Cuotas de servicio (límites de servicio):
+	- Correr instancias estandar On-Demand: 1152 vCPU.
+	- Puedes solicitar el incremento del límite de servicio abriendo un ticket.
+	- Puedes solicitar un incremento de la cuota de servicio usando el API **Service Quotas**.
+
+### Exponential Backoff (para cualquier servicio AWS)
+- Si estamos obteniendo intermitente la excepción **ThrottlingException**, usar Exponential Backoff.
+- Mecanismo de reintento incluído en los llamados API del SDK.
+- Debemos implementarlo nosotros mismos si estamos usando el API de AWS tal como esta o en casos especificos.
+	- Debe implementarse sólo en reintentos en errores 5xx y limitaciones del servidor.
+	- No implementarlo en errores de cliente 4xx.
+
+En resumen lo que nos permite el Exponential Backoff es que en cada reintento se va duplicando el tiempo de espera, esto nos permite tener cada vez menos carga en el servidor, lo que permitira que el servidor reciba tantas request como sea posible.
+
+
+## AWS CLI Credentials Provicer Chain
+
+- El CLI va a buscar credenciales en este orden:
+	1. Opciones de línea de comando - --region, --output y --profile.
+	2. Variables de entorno - AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY y AWS_SESSION_TOKEN.
+	3. Archivo CLI de credenciales - aws configure c:\Users\user\.aws\credentials en Windows, ~/.aws/credentials en Linux.
+	4. Archivo de configuracion CLI - aws configure c:\Users\user\.aws\config en Windows, ~/.aws/config en Linux.
+	5. Contenedor de credenciales - para tareas ECS.
+	6. Perfil de instancia de credenciales - para perfiles de instancias EC2.
+
+### Escenario AWS Credentials
+- Una aplicación desplegada en una instancia EC2 esta usando variables de entorno con credenciales desde un usuario IAM para llamar el API de Amazon S3.
+- El usuario IAM tiene permisos S3FullAccess.
+- La aplicación sólo usa un bucket S3, así que acorde a las mejores prácticas:
+	- Un rol IAM y un perfil de la instancia EC2 fue creado para la instancia EC2.
+	- El rol fue asignado con los permisos mínimos para acceder ese bucket S3.
+- El perfil de instnacia IAM fue asignado a la instancia EC2, pero sigue teniendo acceso a todos los buckets S3, ¿por qué?
+	- La cadena de credenciales sigue dando prioridad a las variables de entorno.
+
+### Mejores prácticas para AWS Credentials
+- Sobre todo, nunca guardar las credenciales AWS en nuestro código.
+- La mejor práctica es heredar las credencias desde la cadena de credenciales.
+- Si estamos trabajando en AWS, usar roles IAM.
+	- => Roles de instancias EC2 para instancias EC2.
+	- => Roles ESC para tareas ECS.
+	- => Roles Lambda para funciones Lambda.
+- Si estamos trabajando por fuera de AWS, utilizar variables de entorno / perfiles nombrados.
+
+
+## Llamados API para logueo en AWS
+
+- Cuando llamamos la API HTTP de AWS, nosotros logueamos la solicitud, asi AWS puede identificarnos, usando nuestras credenciales AWS (access key y secret key).
+- **Nota:** Algunas request a Amazon S3 no necesitan el logueo.
+- Si usas el SDK o el CLI, los llamados HTTP son firmados por nosotros.
+- Podemos firmar un llamado HTTP a AWS usando Signature v4 (SigV4).
+
+### Ejemplo llamados SigV4
+- Opción Header (firma en el Authorization header).
+- Query String, ex: URL S3 pre-firmada (firma en X-Amz-Signature).
