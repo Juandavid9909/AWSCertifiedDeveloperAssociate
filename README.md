@@ -1453,3 +1453,78 @@ En resumen lo que nos permite el Exponential Backoff es que en cada reintento se
 ### Ejemplo llamados SigV4
 - Opción Header (firma en el Authorization header).
 - Query String, ex: URL S3 pre-firmada (firma en X-Amz-Signature).
+
+
+# S3 avanzado
+
+## Storage Classes
+
+- Podemos transicionar objetos entre diferentes clases de almacenamiento.
+- Para objetos infrequentemente accedidos, moverlos al **Standard IA**.
+- Para objetos archivados a los que no necesitamos acceder de forma veloz, podemos moverlos a **Glacier** o **Glacier Deep Archive**.
+- Mover los objetos puede ser automatizado usando **Lifecycle Rules**.
+
+### Lifecycle Rules
+- Acciones de transición - configurar objetos para transicionar a otra clase de almacenamiento.
+	- Mover objetos a Standard IA 60 días después de su creación.
+	- Mover a Glacier para archivar después de 6 meses.
+- Acciones de expiración - configurar objetos para expirarlos (eliminarlos) después de cierto tiempo.
+	- Archivos de logs de acceso pueden ser configurados para eliminar después de 365 días.
+	- Puede ser usado para eliminar versiones viejas de archivos (si el versionamiento esta habilitado).
+	- Puede ser usado para eliminar cargas Multi-Part incompletas.
+- Las reglas pueden ser creadas para cierto prefijo (ejemplo: s3://mybucket/mp3/*).
+- Las reglas pueden ser creadas para ciertos Tags de objetos (ejemplo: Department: Finance).
+
+
+## S3 Event Notifications
+
+- S3:ObjectCreated, S3:ObjectRemoved, S3:ObjectRestore, S3:Replication...
+- Filtrando por posible nombre de objeto (*.jpg).
+- Caso de uso: Generar thumbnails de imágenes cargadas a S3.
+- Se pueden crear tantos eventos S3 como sea necesario.
+- Las notificaciones de eventos S3 normalmente reconocen los eventos en segundos pero puede tomar algunas veces uno o más minutos.
+
+### IAM Permissions
+- Son requeridos permisos IAM para configurar estas notificaciones de eventos.
+- Dependiendo de si usamos SNS o SQS o una función Lambda tendremos que configurar una política de acceso del recurso para que se ejecuten correctamente.
+
+### Event Bridge
+Se puede configurar el Event Bridge (el cual recibe todos los eventos que se ejecutan), y una vez recibidos los eventos podemos destinarlo a hasta 18 servicios AWS como destino.
+
+
+## Rendimiento S3
+
+- Amazon S3 automaticamente escala los rangos de solicitudes, latencia entre 100-200 ms.
+- Nuestra aplicacion puede alcanzar hasta al menos 3500 PUT/COPY/POST/DELETE o 5500 GET/HEAD solicitudes por segundo por prefijo en un bucket.
+- No hay limites de número de prefijos en un bucket.
+- Ejemplo (ruta objeto => prefijo):
+	- bucket/folder1/sub1/file => /folder1/sub1.
+- Para carga Multi-Part:
+	- Recomendada para archivos > 100mb, debe usarse para archivos > 5gb.
+	- Puede ayudar a paralelizar las cargas.
+- Aceleracion de transferencia S3:
+	- Aumenta la velocidad de transferencia transfiriendo archivos a una ubicación de borde de AWS que reenviará los datos al depósito de S3 en la región de destino.
+	- Compatible con carga multi-part.
+
+
+## S3 Select y Glacier Select
+
+- Retorna menos data usando SQL para mejorar el rendimiento de filtro del servidor.
+- Puede filtrar por filas y columnas.
+- Menos transferencia de red, menos costo de CPU.
+
+
+## Tags en objetos S3 y metadata
+
+- S3 User-Designed Object Metadata:
+	- Cuando cargamos un objeto, podemos asignar metadata.
+	- Parejas nombre-valor (key-value).
+	- Los nombres de user-defined metadata deben empezar con "x-amz-meta-".
+	- Amazon S3 guarda las keys de esta metadata en minúsculas.
+	- La metadata puede ser obtenida cuando se obtiene un objeto.
+- S3 Object Tags:
+	- Parejas Key-value para objetos en Amazon S3.
+	- Útil para permisos detallados (sólo acceso especifico a objetos con tags especificos).
+	- Útil para propósitos analíticos (usando S3 Analytics para agrupar por tags).
+- No se puede buscar la metadata del objeto y tags.
+- En vez de esto, debes usar una base de datos externa como un índice de búsqueda como DynamoDB.
