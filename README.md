@@ -1528,3 +1528,107 @@ Se puede configurar el Event Bridge (el cual recibe todos los eventos que se eje
 	- Útil para propósitos analíticos (usando S3 Analytics para agrupar por tags).
 - No se puede buscar la metadata del objeto y tags.
 - En vez de esto, debes usar una base de datos externa como un índice de búsqueda como DynamoDB.
+
+
+# Seguridad en S3
+
+## Encriptación en S3
+
+- Podemos encriptar objetos en los buckets de S3 usando uno de 4 métodos:
+	- Server-Side Encryption (SSE).
+		- Server-Side Encryption con Amazon S3-Managed Keys (SSE-S3) - habilitado por defecto.
+			- Encripta los objetos S3 usando llaves administrados y propias de AWS.
+			- El tipo de encriptación es **AES-256**.
+			- Debe configurarse el header "x-amz-server-side-encryption":"AES256".
+			- Habilitado por defecto para nuevos buckets y nuevos objetos.
+		- Server-Side Encryption con KMS Keys almacenadas en AWS KMS (SSE-KMS).
+			- Aprovechar AWS Key Management Service (AWS KMS) para administrar llaves de encriptación.
+			- Ventajas de KMS: control de usuario + auditoría del uso de las llaves con CloudTrail.
+			- El objeto es encriptado del lado del servidor.
+			- Se debe configurar el header "x-amz-server-side-encryption":"aws:kms".
+			- Si se utiliza SSE-KMS, podemos ser impactados por los limites de KMS.
+			- Cuando se hace una carga, se llama de forma automatica el API GenerateDataKey KMS.
+			- Cuando se descarga, llama automáticamente el API Decrypt KMS.
+			- Cuenta para la cuota de KMS por segundo (5500, 10000, 30000 solicitudes basado en la region).
+			- Se puede incrementar la cuoda de solicitudes usando Service Quotas Console.
+		- Server-Side Encryption con Customer-Provided Keys (SSE-C).
+			- Cuando quieres administrar tus propias llaves de encriptación.
+			- Utiliza llames completamente administradas por el cliente fuera de AWS.
+			- Amazon S3 no guarda la llave de encriptación que nosotros le proveemos.
+			- HTTPS debe ser usado.
+			- La llave de encriptación debe ser proveída en los headers HTTP, para cada llamado HTTP realizado.
+	- Client-Side Encryption.
+		- Usa librerías de clientes tales como Amazon S3 Client-Side Encryption Library.
+		- Los clientes deben encriptar la data por ellos mismos antes de enviarla a Amazon S3.
+		- Los clientes deben desencriptar la data ellos mismos cuando la obtienen desde Amazon S3.
+		- El cliente administra completamente las llaves y el ciclo de encriptación.
+	- Amazon S3 Encriptyon in transit (SSL/TLS).
+		- La encriptación en vuelo es también llamada SSL/TLS.
+		- Amazon S3 expone 2 endpoints:
+			- HTTP Endpoint - no encriptado.
+			- HTTPS Endpoint - encriptación en vuelo.
+		- HTTPS es recomentado.
+		- HTTPS es obligatorio en SSE-C.
+		- La mayoría de los clientes usarian HTTPS por defecto.
+- Es importante entender cuales son para cuáles situaciones en el exámen.
+
+
+## S3 CORS
+
+- Cross Origin Resource Sharing (CORS).
+- Origin = esquema (protocolo) + host (dominio) + puerto.
+	- Ejemplo: htps://www.example.com (el puerto implicado es 443 para HTTPS, 80 para HTTP).
+- Buscador web basado en el mecanismo de permitir request de otros orígenes mientras se visita el origen principal.
+- Si un cliente hace una solicitud cross-origin en nuestro bucket S3, necesitamos habilitar el correcto header CORS.
+- Es una pregunta muy popular en el examen.
+- Puedes permitir para orígenes específicos o para todos los orígenes.
+
+
+## MFA Delete
+
+- El MFA (Multi-Factor Authentication) obliga a los usuarios a generar un código en un dispositivo (usualmente un celular o hardware) antes de hacer operaciones importantes en S3.
+- MFA será requerido para:
+	- Eliminar de forma permanente una versión de un objeto.
+	- Suspender el versionamiento en el bucket.
+- MFA no sera requerido para:
+	- Habilitar el versionamiento.
+	- Listar las versiones eliminadas.
+- Para usar el MFA Delete, el versionamiento debe de estar habilitado en el bucket.
+- Sólo la cuenta raíz (el propietario) puede habilitar/deshabilitar el MFA Delete.
+
+```bash
+# Habilitar MFA Delete
+aws s3api put-bucket-versioning --bucket nuestro-bucket --versioning-configuration Status=Enabled,MFADelete=Enabled --mfa "nuestro-arn codigo-mfa" --profile nuestro-perfil
+
+# Deshabilitar MFA Delete
+aws s3api put-bucket-versioning --bucket nuestro-bucket --versioning-configuration Status=Enabled,MFADelete=Disabled --mfa "nuestro-arn codigo-mfa" --profile nuestro-perfil
+```
+
+
+## Access Logs
+
+- Para propósitos de auditoría, tú podrías querer guardar logs de todo el acceso a los buckets S3.
+- Cualquier solicitud hecha a S3, desde cualquier cuenta, autorizada o denegada, será guardada en los logs dentro de otro bucket S3.
+- Los datos pueden ser analizados utilizando herramientas de análisis de datos.
+- El bucket para guardar los logs debe de estar en la misma región AWS.
+
+### Advertencias
+- No configurar el bucket principal como el bucket para guardar logs y el bucket a ser monitoreado, ya que generará un bucle infinito y nuestro bucket crecerá exponencialmente.
+
+
+## Amazon S3 Pre-Signed URLs
+
+- Se pueden generar las URLs pre-firmadas utilizando la consola de S3, AWS CLI o SDK.
+- La expiración de las URLs:
+	- Consola S3 - de 1 minuto a 720 minutos (12 horas).
+	- AWS CLI - configura la expiración con el parámetro --expires-in en segundos (por defecto 3600 segundos, máximo 604800 segundos - 168 horas).
+- Los usuarios dan una URL pre-firmada heredando los permisos del usuario que generó la URL para GET / PUT.
+
+
+## Access Points
+
+- Los puntos de acceso nos permiten segmentar el acceso por usuario, supongamos que los usuarios del área financiera necesitan acceder a los archivos de financias, con el access point lo podemos hacer fácilmente.
+- Simplifican la administración de seguridad de nuestros buckets.
+- Cada punto de acceso tiene:
+	- Su propio DNS (origen de Internet o VPC).
+	- Una política de punto de acceso (similar a las politicas de los buckets).
