@@ -1632,3 +1632,140 @@ aws s3api put-bucket-versioning --bucket nuestro-bucket --versioning-configurati
 - Cada punto de acceso tiene:
 	- Su propio DNS (origen de Internet o VPC).
 	- Una política de punto de acceso (similar a las politicas de los buckets).
+
+
+# AWS CloudFront
+
+- Content Delivery Network (CDN).
+- Mejora el rendimiento de lectura, y el contenido es cacheado.
+- Mejora la experiencia de usuario.
+- 216 puntos de presencia de manera global.
+- Protección DDoS (gracias a worldwide), integración con Shield, AWS Web Application Firewall.
+
+
+## Orígenes
+
+- Bucket S3.
+	- Para distribuir archivos y cachearlos.
+	- Seguridad mejorada con CloudFront Origin Access Control (OAC).
+	- OAC está reemplazando Origin Access Identity (OAI).
+	- CloudFront puede ser usado como entrada (para cargar archivos a S3).
+- Custom Origin (HTTP).
+	- Balanceador de carga.
+	- Instancia EC2.
+	- Sitio S3 (debe ser habilitado primero. elbucket como un S3 de sitio web estático).
+	- Cualquier backend HTTP que queramos.
+
+
+## Caching
+
+- El caché vive en cada ubicación de CloudFront.
+- CloudFront identifica cada objeto en el cache usando el Cache Key.
+- Desea maximizar la proporción de aciertos de caché para minimizar las solicitudes al origen.
+- Se puede invalidar parte del cache usando el API CreateInvalidation.
+
+### Cache Key
+- Un identificador único para cada objeto en el caché.
+- Por defecto, consiste en el hostname + porción de la URL del recurso.
+- Puedes agregar otros elementos (encabezados HTTP, cookies, query strings) al Cache Key usando CloudFront Cache Policies.
+
+### Cache Policy
+- Cache basada en:
+	- Encabezados HTTP: None - Whitelist.
+	- Cookies: None - Whitelist - Include All-Except - All.
+	- Query Strings: None - Whitelist - Include All-Except - All.
+- Controla el TTL (0 segundos a 1 año), puede ser modificado por origen usando el encabezado Cache-Control, encabezado Expires...
+- Podemos crear nuestra propia política sin usar las políticas administradas predefinidas.
+
+### Origin Request Policy
+- Especifica valores que queremos incluir en las solicitudes de origen sin incluir en ellas el Cache Key (no hay contenido cacheado duplicado).
+- Podemos incluir:
+	- Encabezados HTTP: None - Whitelist - todos los headers de visualizador.
+	- Cookies: None - Whitelist - Include All-Except - All.
+	- Query Strings: None - Whitelist - Include All-Except - All.
+- Habilidad de agregar encabezados HTTP CloudFront y endabezados poersonalizados a una solicitud al origen que no fueron incluidas en la solicitud de visualizador.
+- Crear nuestras propias políticas o usar las políticas administradas predefinidas.
+
+
+## Cache Invalidations
+
+- En caso que actualicemos el origen back-end, CloudFront no sabe sobre esto y sólo refrescará el contenido después de que la TTL expira.
+- Sin embargo, podemos obligar a refrescar la cache completa o una parte de esta ejecutando un CloudFront Invalidation.
+- Podemos invalidar todos los archivos (*) o un path en específico (/images/*).
+
+
+## Cache Behaviors
+
+- Configure diferentes ajustes para un patrón de ruta de URL determinado.
+- Ejemplo: Un comportamiento específico de cacheo para los archivos images/*.jpg en nuestro servidor de origen web.
+- Enrutar a diferentes tipos de grupos de orígenes basado en el tipo de contenido o el patrón de ruta.
+	- /images/*.
+	- /api/*.
+	- /* (comportamiento de cacheo por defecto).
+- Cuando se agregan nuevos comportamientos de cacheo, el comportamiento de cacheo por defecto es siempre el último en ser procesado y siempre es /*.
+
+
+## Geo Restricción
+
+- Podemos restringir quién accede a nuestra distribución.
+	- Allowlist: Permite a los usuarios acceder al contenido sólo si están en uno de los paíes en una lista de países aprobados.
+	- Blocklist: Previene el acceso de los usuarios a nuestro contenido si están en uno de los países en una lista de países baneados.
+- El país es determinado usando una base de datos Geo-IP de terceros.
+
+
+## URL firmadas / Cookies firmadas
+
+- Queremos distribuir contenido compartido pago a usuarios premium alrededor del mundo.
+- Podemos usar CloudFront Signed Url / Cookie. Adjuntamos la política con:
+	- Incluye expiración URL.
+	- Incluye rangos de IP desde los que se puede acceder a la data.
+	- Firmantes de confianza (en los que las cuentas AWS pueden crear URLs firmadas).
+- ¿Cuánto tiempo debe ser válida mi URL?
+	- Contenido compartido (películas, música): Hacerlo corto (unos cuántos minutos).
+	- Contenido privado (privado para el usuario): Podemos hacerlo por años.
+- Signed URL = acceso a archivos individuales (una URL firmada por archivo).
+- Signed Cookies = acceso a múltiples archivos (una cookie firmada para muchos archivos).
+
+
+## Costos
+
+- CloudFront está en todo el mundo.
+- Los costos de la data por ubicacion puede variar.
+- Puede reducir la cantidad de ubicaciones para reducir costos.
+- Hay tres clases de costos:
+	1. Price Class All: Todas las regiones - mejor rendimiento.
+	2. Price Class 200: La mayoría de regiones, pero excluye las regiones más costosas.
+	3. Price Class 100: Sólo las regiones más baratas.
+
+
+## Origen múltiple
+
+- Enruta a diferentes tipos de orígenes basado en el tipo de contenido.
+- Basado en el patron de la ruta:
+	- /images/*.
+	- /api/*.
+	- /*.
+
+
+## Grupos de origen
+
+- Para incrementar la alta disponibilidad y hacer conmutación de error.
+- Origin Group: Un origen primario y uno secundario.
+- Si el primario falla, el segundo es usado.
+
+
+## Field Level Encryption
+
+- Protege la información sensigle del usuario a través de la pila de aplicación.
+- Agrega una capa adicional de seguridad con HTTPS.
+- Información sensible encriptada en un punto cercano al usuario.
+- Usa encriptación asimétrica.
+- Uso:
+	- Especifica los campos a configurar en solicitudes POST que tú quieres que sean encriptados (hasta 10 campos).
+	- Especifica la llave pública para encriptarlos.
+
+
+## Real Time Logs
+
+- Obtiene las solicitudes recibidas en tiempo real por CloudFront enviadas a Kinesis Data Streams.
+- Monitorea, analiza y toma acción basado en el rendimiento de entrega de contenido.
