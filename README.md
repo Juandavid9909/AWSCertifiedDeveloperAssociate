@@ -1769,3 +1769,205 @@ aws s3api put-bucket-versioning --bucket nuestro-bucket --versioning-configurati
 
 - Obtiene las solicitudes recibidas en tiempo real por CloudFront enviadas a Kinesis Data Streams.
 - Monitorea, analiza y toma acción basado en el rendimiento de entrega de contenido.
+
+
+# ECS, ECR y Fargate
+
+## ¿Qué es Docker?
+
+- Es una plataforma de desarrollo de software para desplegar apps.
+- Las aplicaciones están empaquetadas en contenedores que pueden correr en cualquier sistema operativo.
+- Las apps corren igual, sin importar dónde están corriendo:
+	- Cualquier máquina.
+	- No hay problemas de compatibilidad.
+	- Comportamiento predecible.
+	- Menos trabajo.
+	- Fácil de mantener y desplegar.
+	- Funciona con cualquier lenguaje, cualquier sistema operativo, cualquier tecnología.
+- Caso de uso: arquitectura de microservicios, levantar y cambiar apps desde on-premises hacia AWS cloud.
+
+
+## ¿Dónde se guardan las imágenes de Docker?
+
+- Son almacenadas en repositorios de Docker.
+- Docker Hub (https://hub.docker.com).
+	- Repositorio público.
+	- Se pueden encontrar imágenes base para muchas tecnologías o sistemas operativos (Ubuntu, MySQL, etc).
+- Amazon ECR (Amazon Elastic Container Registry):
+	- Repositorio privado.
+	- Repositorios públicos (Amazon ECR Public Gallery https://gallery.ecr.aws).
+
+
+## Docker vs Máquinas virtuales
+
+- Docker es "más o menos" una tecnología de virtualización, pero no exactamente.
+- Los recursos son compartidos con el host => muchos contenedores en un servidor.
+
+
+## Administración de contenedores de Docker en AWS
+
+- Amazon Elastic Container Service (Amazon ECS)-
+	- Plataforma de contenedores propia de Amazon.
+- Amazon Elastic Kubernetes Service (Amazon EKS).
+	- Kubernetes administrados por Amazon (open source).
+- AWS Fargate
+	- Plataforma de contenedores Serverless propia de Amazon.
+	- Funciona con ECS y con EKS.
+- Amazon ECR.
+	- Tienda de imágenes de contenedores.
+
+
+## Amazon ECS - EC2 Launch Type
+
+- ECS = Elastic Container Service.
+- Lanzar contenedores de Docker en AWS = Lanzar tareas ECS en Clusters ECS.
+- EC2 Launch Type: debemos provisionar y mantener la infraestructura (las instancias EC2).
+- Cada instancia EC2 debe correr el agente ECS para registrar en el Clúster ECS.
+- AWS se encarga de encender/apagar los contenedores.
+
+
+## Amazon ECS - Fargate Launch Type
+
+- Lanzar los contenedores Docker en AWS.
+- No provisionamos la infraestructura (lo hay instancias EC2 para administrar).
+- Todo es Serverless.
+- Podemos crear definiciones de tareas.
+- AWS sólo corre tareas ECS para nosotros basado en la CPU/RAM que necesitemos.
+
+
+## Amazon ECS - Roles IAM para ECS
+
+- EC2 Instance Profile (sólo para EC2 Launch Type):
+	- Usado para el agente ECS.
+	- Hacer llamados al API del servicio ECS.
+	- Enviar logs del contenedor a los logs de CloudWatch.
+	- Descargar imágenes de Docker desde ECR.
+	- Referencia a los datos sensibles en Secrets Manager o SSM Parameter Store.
+- ECS Task Role:
+	- Permite tener un rol específico a cada tarea.
+	- Usa diferentes roles para los diferentes servicios ECS que ejecutemos.
+	- Task Role está definido en la definición de tarea.
+
+
+## Amazon ECS - Load Balancer Integrations
+
+- **Application Load Balancer** soportado y funciona para la mayoría de casos de uso.
+- **Network Load Balancer** recomendado sólo para casos de uso de altas cargas/rendimiento, o para emparejar con AWS Private Link.
+- **Classic Load Balancer** soportado pero no recomendado (no hay actualizaciones, no Fargate).
+
+
+## Amazon ECS - Data Volumes (EFS)
+
+- Monta EFS file systems en las tareas ECS.
+- Trabaja con tanto EC2 como Fargate Launch Types.
+- Las tareas que se ejecutan en cualquier AZ compartirán la misma data en el EFS file system.
+- Fargate + EFS = Serverless.
+- Casos de uso: almacenamiento compartido en múltiples AZ para nuestros contenedores.
+- Nota: Amazon S3 no puede ser montado como un file system.
+
+
+## ECS Service Auto Scaling
+
+- Automáticamente incrementar/decrementar el número deseado de tareas ECS.
+- Amazon ECS Auto Scaling utiliza AWS Application Auto Scaling.
+	- Promedio de uso de CPU en servicio ECS.
+	- Promedio de uso de memoria en servicio ECS - escalar en RAM.
+	- Recuento de solicitudes de ALB por objetivo - métrica desde ALB.
+- Target Tracking - escalado basado en un valor específico de las métricas de CloudWatch.
+- Step Scaling - escalas basadas en una alarma especificada en CloudWatch.
+- Scheduled Scaling - escalas basadas en una fecha/tiempo específico (cambios predecibles).
+- ECS Service Auto Scaling (nivel de tarea) $\ne$ EC2 Auto Scaling (nivel de instancia EC2).
+- Fargate Auto Scaling es mucho más fácil de configurar (porque es Serverless).
+
+
+## ECS Rolling Updates
+
+- Cuando actualizamos de la v1 a la v2, podemos controlar cuántas tareas pueden iniciarse y detenerse, y en qué orden.
+
+
+## Tareas ECS invocadas por Event Bridge
+
+Podemos tener un bucket en S3, y cada que por medio del API o el SDK se obtenga un objeto en este bucket podemos lanzar un evento a EventBridge, este ejecuta una tarea en ECS la cuál guarda un registro en DynamoDB.
+
+
+## Amazon ECS Task Definitions
+
+- Las tareas son metadatos en formato JSON para decirle a ECS cómo correr un contenedor de Docker.
+- Contiene información crucial, como:
+	- Nombre de la imagen.
+	- Puerto abierto entre el contenedor y el hist.
+	- Memoria y CPU requerida.
+	- Variables de entorno.
+	- Información de red.
+	- Rol IAM.
+	- Configuración de logueo (por ejemplo CloudWatch).
+- Se pueden definir hasta 10 contenedores en una definición de tarea.
+
+
+## Amazon ECS - Task Placements
+
+- Las estrategias de asignación de tareas son el mejor esfuerzo.
+- Cuando Amazon ECS coloca tareas, utiliza el siguiente proceso para seleccionar las instancias de contenedores:
+	1. Identificar las instancias que satisfacen los requisitos de CPU, memoria y puerto en la definición de tarea.
+	2. Identificar las instancias que satisfacen las restricciones de colocación de tareas.
+	3. Identificar las instancias que satisfacen las estrategias de colocación de tareas.
+	4. Seleccionar las instancias para la colocación de tareas.
+
+
+## Amazon ECR
+
+- ECR = Elastic Container Registry.
+- Guarda y administra las imágenes de Docker en AWS.
+- Repositorios privados y públicos (Amazon ECR Public Gallery https://gallery.ecr.aws).
+- Totalmente integrado con ECS, respaldado por Amazon S3.
+- El acceso es controlado mediante IAM (error de permisos => política).
+- Soporta el escaneo de vulnerabilidad de imágenes, versionamiento, tags, ciclo de vida en imágenes, etc.
+
+### AWS CLI
+```bash
+# Loguearse
+aws ecr get-login-password --region <region> | docker login --username AWS --pasword-stdin <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+
+# Ver contraseña generada
+aws ecr get-login-password --region <region>
+
+# Push
+docker push <aws-account_id>.drk.ecr<region>.amazonaws.com/demo:latest
+
+# Pull
+docker pull <aws-account_id>.drk.ecr<region>.amazonaws.com/demo:latest
+```
+
+
+## AWS CoPilot
+
+- Herramienta CLI para construir, liberar y operar en producción aplicaciones en contenedores.
+- Ejecutar nuestras apps en AppRunner, ECS y Fargate.
+- Nos ayuda a enfocarnos en construir las apps en lugar de enfocarse en la infraestructura.
+- Provisiona toda la infraestructura requerida para apps en contenedores (ECS, VPC, ELB, ECR, etc).
+- Despliegues automatizados con un comando usando CodePipeline.
+- Despliegues a muchos ambientes.
+- Solución de problemas, logs, health status, etc.
+
+
+## Amazon EKS
+
+- Amazon EKS = Amazon Elastic Kubernetes Service.
+- Es una forma de lanzar clusters de Kubernetes administrados en AWS.
+- Kubernetes es un sistema open-source para despliegue automáticos, es calamiento y administración de aplicaciones en contenedores (usualmente Docker).
+- Es una alternativa a ECS, similar objetivo pero diferente API.
+- EKS soporta EC2 si queremos desplegar nodos de trabajo o Fargate para desplegar contenedores Serverless.
+- Caso de uso: Si nuestra compañía ya está utilizando Kubernetes on-premises o en otra nube, y queremos migrar a AWS utilizando Kubernetes.
+- Kubernetes es agnóstico en nube (es decir que puede ser utilizado en cualquier proveedor de servicios de computación en la nube).
+
+### Tipo de nodos
+- Managed Node Groups.
+	- Crea y administra nodos (instancias EC2) para nosotros.
+	- Los nodos son parte de un Auto Scaling Group (ASG) administrado por EKS.
+	- Soporta instancias On-Demand o Spot.
+- Self-ManagedNodes.
+	- Los nodos son creados por nosotros y registrados en el clúster de EKS y administrados por un ASG.
+	- Podemos preconstruir un AMI - Amazon EKS Optimized AMI.
+	- Soporta instancias On-Demand o Spot.
+- AWS Fargate.
+	- No requiere mantenimiento, los nodos no son administrados.
