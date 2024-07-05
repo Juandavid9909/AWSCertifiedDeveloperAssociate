@@ -1971,3 +1971,332 @@ docker pull <aws-account_id>.drk.ecr<region>.amazonaws.com/demo:latest
 	- Soporta instancias On-Demand o Spot.
 - AWS Fargate.
 	- No requiere mantenimiento, los nodos no son administrados.
+
+
+# AWS Elastic Beanstalk
+
+- Es una vista centralizada en el desarrollador para despliegue de una aplicación en AWS.
+- Utiliza todos los componentes que hemos visto antes: EC2, ASG, ELB, RDS, etc.
+- Servicio administrado:
+	- Automáticamente modifica la capacidad de provisionamiento, balanceos de carga, escalamiento, tiene monitoreo de salud de la aplicación, etc.
+	- Sólo el código de la aplicación es la responsabilidad del desarrollador.
+- Seguimos teniendo control total sobre la configuración.
+- BeanStalk es gratuito pero debemos pagar por todas las instancias subyacentes.
+
+
+## Componentes
+
+- Aplicación: colección de componentes de Elastic BeanStalk (ambientes, versiones, configuraciones, etc).
+- Versión de aplicación: una iteración de nuestro código.
+- Ambiente:
+	- Colección de recursos AWS corriendo una versión de nuestra aplicación (sólo una versión de aplicación al tiempo).
+	- Tiers: nivel de entorno de servidor web y nivel de entorno de trabajo.
+	- Podemos crear múltiples ambientes (dev, test, prod, etc).
+
+
+## Plataformas soportadas
+
+- Go.
+- Java SE.
+- Java con Tomcat.
+- .NET Core en Linux.
+- .NET en Windows Server.
+- Node.js.
+- PHP.
+- Python.
+- Ruby.
+- Packer Builder.
+- Single Container Docker.
+- Multi-container Docker.
+- Preconfigured Docker.
+
+
+## Modos de despliegue
+
+- All at once (desplegar todo de una vez) - el más rápido, pero las instancias no están disponibles para servir el tráfico por un tiempo (downtime).
+- Rolling: actualiza unas pocas instancias en un tiempo (bucket), y entonces se mueve al siguiente bucket una vez el primero está completamente bien.
+- Rolling with additional batches: como el anterior, pero activa nuevas instancias para mover el lote (de modo que la aplicación anterior todavía esté disponible).
+- Immutable: activa nuevas instancias en un nuevo ASG, despliega la versión a estas instancias y entonces intercambia todas las instancias una vez están estables.
+- Blue Green: crea un nuevo ambiente y se cambia a otro cuando ya está listo.
+- Traffic Splitting: canary testing - envía un pequeño porcentaje del tráfico a una nueva implementación.
+
+
+## Beanstalk CLI
+
+- Podemos instalar un CLI adicional llamado "EB CLI" el cual nos permite trabajar con Beanstalk desde el CLI fácilmente.
+- Los comandos básicos son:
+	- eb create.
+	- eb status.
+	- eb health.
+	- eb events.
+	- eb logs.
+	- eb open.
+	- eb deploy.
+	- eb config.
+	- eb terminate.
+
+### Proceso de despliegue
+- Describir dependencias (requirements.txt para Python, package.json para Node.js).
+- Empaquetar el código en un .zip, y describir las dependencias.
+	- Python: requirements.txt.
+	- Node.js: package.json.
+- Consola: cargar el archivo zip (crea una nueva versión de la app) y después desplegar.
+- CLI: crea una nueva versión de la app usando el CLI (carga el zip), y después desplegar.
+- Elastic Beanstalk desplegará el zip en cada instancia EC2, resolverá las dependencias e iniciará la aplicación.
+
+
+## Beanstalk Lifecycle
+
+- Puede almacenar hasta 1000 versiones de aplicaciones.
+- Si no eliminamos las versiones anteriores, no podremos desplegar más.
+- Para eliminar gradualmente las versiones antiguas de la aplicación, podemos utilizar un lifecycle policy.
+	- Basado en tiempo (versiones viejas son removidasa).
+	- Basado en espacio (cuando tienes muchas versiones).
+- Las versiones que actualmente son usadas no serán eliminadas.
+- Opción de no eliminar el paquete fuente en S3 para evitar la pérdida de datos.
+
+
+# AWS CloudFormation
+
+- Es una forma declarativa de delinear nuestra infraestructura de AWS, para cualquier recurso (la mayoría son soportados).
+- Por ejemplo, con una plantilla de CloudFormation, podemos decir:
+	- Quiero un grupo de seguridad.
+	- Quiero 2 instancias EC2 usando este grupo de seguridad.
+	- Quiero 2 Elastic IPs para estas instancias EC2.
+	- Quiero un bucket S3.
+	- Quiero un balanceador de carga (ELB) al frente de estas instancias EC2.
+- Después CloudFormation crea todo esto por nosotros, en el orden correcto, con la configuración exacta que le especificamos.
+
+
+## Beneficios
+
+- Infraestructura como código.
+	- Los recursos no son creados manualmente, lo cual es excelente para nuestro control.
+	- El código puede estar controlado por versiones por ejemplo usando Git.
+	- Los cambios de la infraestructura se revisan a través del código.
+- Costos.
+	- Cada recurso en la pila es tagueado con un identificados, así nosotros podemos verlo fácilmente cuánto cuesta.
+	- Podemos estimar los costos de nuestros recursos usando la plantilla de CloudFormation.
+	- Estrategias de ahorro: en desarrollo, podríamos automatizar la eliminación de las plantillas a las 5 p.m. y crearlas nuevamente a las 8 a.m. de forma segura.
+- Productividad.
+	- Habilidad de destruir y crear una infraestructura en la nube.
+	- Generación automática del diagrama para nuestros templates.
+	- Programación declarativa (no se necesita ordenamiento y orquestación).
+- Separación de problemas: crear muchas pilas para muchas apps, y muchas capas.
+	- Pilas VPC.
+	- Pilas de red.
+	- Pilas de app.
+- No reinventar la rueda.
+	- Aprovechar las plantillas existentes en la web.
+	- Aprovechar la documentación.
+
+
+## ¿Cómo funciona CloudFormation?
+
+- Las plantillas deben ser cargadas en S3 y entonces referenciarlas en CloudFormation.
+- Para actualizar una plantilla, no podemos editar la ya existente. Tenemos que cargar una nueva versión de la plantilla a AWS.
+- Las pilas son identificadas por un nombre.
+- Al eliminar una pila se elimina cada artefacto singular que fue creado por CloudFormation.
+
+
+## Desplegar plantillas de CloudFormation
+
+- Forma manual.
+	- Editar plantillas en Application Composer o el editor de código.
+	- Utilizar la consola para los parámetros de entrada.
+- Forma automatizada.
+	- Editar plantillas en un archivo YAML.
+	- Usar AWS CLI para desplegar las plantillas, o usar una herramienta CD (Continuous Delivery).
+	- La forma recomendada cuando queremos automatizar nuestro flujo.
+
+
+## Bloques de construcción
+
+- Componentes de las plantillas:
+	- AWSTemplateFormatVersion - identifica las capacidades del template "2010-09-09".
+	- Description - comentarios sobre la plantilla.
+	- Resources (OBLIGATORIO) - nuestros recursos AWS declarados en la plantilla.
+	- Parameters - las entradas dinámicas para nuestra plantilla.
+	- Mappings - las variables estáticas para nuestra plantilla.
+	- Outputs - referencias a lo que ha sido creado.
+	- Conditions - lista de condiciones para realizar la creación de recursos.
+- Template's Helpers
+	- Referencias.
+	- Funciones.
+
+**Ejemplo:**
+```yaml
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Template for Lambda Sample.
+
+Parameters:
+  EnvName:
+    Description: Name of an environment. 'dev', 'staging', 'prod' and any name.
+    Type: String
+    AllowedPattern: ^.*[^0-9]$
+    ConstraintDescription: Must end with non-numeric character.
+
+  LambdaHandlerPath:
+    Description: Path of a Lambda Handler.
+    Type: String
+    AllowedPattern: ^.*[^0-9]$
+    ConstraintDescription: Must end with non-numeric character.
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambda-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonKinesisFullAccess
+      Path: /
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      guard:
+        SuppressedRules:
+          - LAMBDA_INSIDE_VPC
+          - LAMBDA_FUNCTION_PUBLIC_ACCESS_PROHIBITED
+    Properties:
+      FunctionName: !Sub lambda-function-${EnvName}
+      Description: LambdaFunction using python3.12.
+      Runtime: python3.12
+      Code:
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+              print(json.dumps(event))
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+      Handler: !Sub ${LambdaHandlerPath}
+      MemorySize: 128
+      Timeout: 10
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          ENV: !Ref EnvName
+          TZ: UTC
+
+Outputs:
+  LambdaRoleARN:
+    Description: Role for Lambda execution.
+    Value: !GetAtt LambdaRole.Arn
+    Export:
+      Name: LambdaRole
+
+  LambdaFunctionName:
+    Value: !Ref LambdaFunction
+
+  LambdaFunctionARN:
+    Description: Lambda function ARN.
+    Value: !GetAtt LambdaFunction.Arn
+    Export:
+      Name: !Sub LambdaARN-${EnvName}
+```
+
+### Intrinsic Functions
+- Fn::Ref.
+- Fn::GetAtt.
+- Fn::FindInMap.
+- Fn::ImportValue.
+- Fn::Join.
+- Fn::Sub.
+- Fn::ForEach.
+- Fn::ToJsonString.
+- Funciones condicionales (Fn::If, Fn::Not, Fn::Equals, etc).
+- Fn::Base64.
+- Fn::Cidr.
+- Fn::GetAZs.
+- Fn::Select.
+- Fn::Split.
+- Fn::Transform.
+- Fn::Length.
+
+### Condition Functions
+- Fn::And.
+- Fn::Equals.
+- Fn::If.
+- Fn::Not.
+- Fn::Or.
+
+
+## Rollbacks
+
+- Si la creación de la pila falla:
+	- Por defecto: todo se elimina. Lo podemos ver en los logs.
+	- Esta opción se puede deshabilitar y podremos debuguear para saber qué pasó.
+- Falla la actualización de una pila:
+	- La pila vuelve a su última versión estable.
+	- Podemos ver en los logs qué pasó y los mensajes de errores.
+- Error en el rollback: arreglar nuestros recursos manualmente, y luego llamar la API ContinueUpdateRollback desde la consola.
+
+
+## Service Role
+
+- Roles IAM que permiten a CloudFormation crear/actualizar/eliminar recursos de las pilas por su cuenta.
+- Da la habilidad a los usuarios de crear/actualizar/eliminar los recursos de las pilas incluso si no tienen permisos para trabajar con los recursos en la pila.
+- Casos de uso:
+	- Queremos lograr el principio de privilegio mínimo.
+	- Pero no queremos dar al usuario todos los permisos requeridos para crear recursos en la pila.
+- El usuario debe tener los permisos iam:PassRole.
+
+
+## Capabilities
+
+- **CAPABILITY_NAMED_IAM** y **CAPABILITY_IAM**:
+	- Deben estar habilitados cuando nuestra plantilla de CloudFormation está creando o actualizando recursos IAM (usuario IAM, rol, grupo, política, llaves de acceso, o perfil de instancia).
+	- Especificar **CAPABILITY_NAMED_IAM** si los recursos son nombrados.
+- **CAPABILITY_AUTO_EXPAND**:
+	- Necesario cuando nuestra plantilla CloudFormation incluye Macros o pilas anidadas (pilas dentro de pilas) para realizar transformaciones dinámicas.
+	- Estás reconociendo que tu plantilla puede cambiar antes de implementarla.
+- **InsufficientCapabilitiesException**:
+	- Excepción que generará CloudFormation si las capacidades no se han aceptado al implementar una plantilla (medida de seguridad).
+
+
+## Política de eliminación
+
+- Controla qué pasa cuando la plantilla de CloudFormation es eliminada o cuando un recurso es removido desde una plantilla de CloudFormation.
+- Medida de seguridad extra para preservar y respaldar los recursos.
+- Por defecto DeletionPolicy=Delete.
+	- El valor Delete no funcionará en un bucket S3 si el bucket no está vacío.
+- DeletionPolicy=Retain.
+	- Especifica qué recursos preservar en caso de que suceda una eliminación en CloudFormation.
+- DeletionPolicy=Snapshot.
+	- Crea un snapfot final antes de eliminar el recurso.
+	- Ejemplos de recursos soportados:
+		- Volumen EBS, ElastiCache, Cluster, ElastiCache ReplicationGroup.
+		- RDS DBInstance, RDS DBCluster, Redshift Cluster, Neptune DBCluster, DocumentDB DBCluster.
+
+
+## Política de pila
+
+- Durante una actualización en una pila de CloudFormation, todas las acciones de actualización son permitidas en todos los recursos (por defecto).
+- Una política de pila es un documento JSON que define las acciones de actualización que están permitidas en recursos específicos durante las actualizaciones de pila.
+- Protege los recursos de actualizaciones no intencionales.
+- Cuando se configura una Stack Policy, todos los recursos en la pila son protegidos por defecto.
+- Especifica un ALLOW (permitir) específico para los recursos que queremos permitir que sean actualizados.
+
+
+## Recursos personalizados
+
+- Son usados para:
+	- Definir recursos que no son soportados aún por CloudFormation.
+	- Definir el provisionamiento personalizado de recursos que pueden estar por fuera de CloudFormation (recursos on-premises, recursos de terceros).
+	- Tener scripts personalizados para ejecutar durante la creación/actualización/eliminación mediante funciones Lambda (ejecutar una función Lambda para limpiar un bucket S3 antes de eliminarlo).
