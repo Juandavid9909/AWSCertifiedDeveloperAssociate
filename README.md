@@ -2448,3 +2448,33 @@ SNS se integra con muchos servicios de AWS a los que podemos enviar los datos pa
 - Kinesis Data Firehouse: cada los streams de los datos en AWS data stores.
 - Kinesis Data Analytics: analiza los streams de datos con SQL o Apache Flink.
 - Kinesis Video Streams: captura, procesa y guarda streams de videos.
+
+
+## SQS vs SNS vs Kinesis
+
+- SQS:
+	- El consumer baja los datos.
+	- Los datos son eliminados después de ser consumidos.
+	- Puede tener tantos trabajadores (consumers) como queramos.
+	- No necesita provisionamiento de rendimiento.
+	- Ordenamiento garantizado sólo en colas FIFO.
+	- Capacidad de delay en mensaje individual.
+- SNS:
+	- Carga los datos a muchs suscriptores.
+	- Hasta 12.500.000 suscriptores.
+	- La data no es persistente (se pierde si no se entrega).
+	- Pub/Sub.
+	- Hasta 100.000 temas.
+	- No necesita provisionamiento de rendimiento.
+	- Integración con SQS para patrón de arquitectura fan-out.
+	- Capacidad FIFO para SQS FIFO.
+- Kinesis:
+	- Standard: bajar datos.
+		- 2mb por shard.
+	- Enhanced-fan out: carga data.
+		- 2mb por shard por consumer.
+	- Posibilidad de reenviar la data.
+	- Destinado a big data en tiempo real, analíticas y ETL.
+	- Ordenamiento a nivel de shard.
+	- Los datos expiran después de cierto tiempo.
+	- Modo de provisionamiento o  capacidad de modo on-demand.
