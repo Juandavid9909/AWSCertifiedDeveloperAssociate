@@ -2430,3 +2430,21 @@ SNS se integra con muchos servicios de AWS a los que podemos enviar los datos pa
 	- Encriptación client-side si el cliente quiere hacer la encriptación/desencriptación por su cuenta.
 - Control de acceso: políticas IAM para regular el acceso al API de SNS.
 - Políticas de acceso SNS (similar a las políticas de los bucket S3).
+
+
+## Kinesis
+
+- Hace fácil recolectar, procesas y analizar data de sreaming en tiempo real.
+- Ingesta data en tiempo real como: Logs de aplicación, métricas, clickstreams de sitios web, data telemétrica IoT.
+- Kinesis Data Streams captura, procesa y guarda los streams de datos.
+	- Retención entre 1 y 365 días.
+	- Habilidad de reprocesar los datos.
+	- Una vez la data es insertada en Kinesis, no puede ser eliminada (inmutabilidad).
+	- La data que comparte la misma partición va al mismo shard (ordenamiento).
+	- Producers: AWS SDK, Kinesis Producer Library (KPL), Kinesis Agent.
+	- Consumers:
+		- Escribirlos nosotros: Kinesis Client Library (KCL), AWS SDK.
+		- Administrados: AWS Lambda, Kinesis Data Firehose, Kinesis Data Analytics.
+- Kinesis Data Firehouse: cada los streams de los datos en AWS data stores.
+- Kinesis Data Analytics: analiza los streams de datos con SQL o Apache Flink.
+- Kinesis Video Streams: captura, procesa y guarda streams de videos.
