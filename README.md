@@ -2300,3 +2300,104 @@ Outputs:
 	- Definir recursos que no son soportados aún por CloudFormation.
 	- Definir el provisionamiento personalizado de recursos que pueden estar por fuera de CloudFormation (recursos on-premises, recursos de terceros).
 	- Tener scripts personalizados para ejecutar durante la creación/actualización/eliminación mediante funciones Lambda (ejecutar una función Lambda para limpiar un bucket S3 antes de eliminarlo).
+
+
+# AWS Integration & Messaging: SQS, SNS y Kinesis
+
+- Cuando queremos desplegar múltiples aplicaciones, ellas inevitablemente necesitan comunicarse entre ellas.
+- Hay 2 patrones de comunicación de aplicaciones.
+	1. Comunicación sincrónica (aplicación a aplicación).
+	2. Asíncrono / basado en eventos (aplicación a cola y después a aplicación).
+
+
+## Amazon SQS
+
+- Es un contenedor de mensajes enviados por productores (los que envían los mensajes) y estos son enviados a los consumidores (destinatarios).
+- Standard Queue:
+	- Oferta más antigua.
+	- Servicio totalmente administrado, usado para aplicaciones desacopladas.
+	- Atributos:
+		- Rendimiento ilimitado, número de mensajes en cola ilimitado.
+		- Retención de los mensajes: 4 días, máximo 14.
+		- Latencia baja (<10ms en publicar y recibir).
+		- Limitación de 256kb por mensaje enviado.
+	- Puede tener mensajes duplicados.
+- Producing Messages:
+	- Producidos para SQS usando el SDK (API SendMessage).
+	- El mensaje es persistente en SQS hasta que un consumer lo elimina.
+	- Retención de mensajes: por defecto 4 días, hasta 14.
+- Consuming Messages:
+	- Consumers (corriendo en instancias EC2, servidores o funciones Lambda).
+	- Sondea SQS por mensajes (puede recibir hasta 10 mensajes al tiempo).
+	- Procesa los mensajes (ejemplo: insertar el mensaje en una base de datos RDS).
+	- Elimina los mensajes usando la API DeleteMessage.
+- Multiple EC2 Instances Consumers:
+	- Los consumers reciben y procesan los mensajes en paralelo.
+	- Al menos una entrega.
+	- Mejor esfuerzo en ordenamiento de mensajes.
+	- Los consumers eliminan los mensajes después de procesarlos.
+	- Podemos escalar los consumers horizontalmente para mejorar el rendimiento de procesamiento.
+- Seguridad en SQS:
+	- Encriptación:
+		- Encriptación in-flight usando API HTTPS.
+		- Encriptación at-rest usando llaves KMS.
+		- Encriptación client-side si el cleiente quiere hacer la encriptación/desencriptación por sucuenta.
+	- Control de acceso: políticas IAM para regular el acceso al API de SQS.
+	- Políticas de acceso SQS (similar a las políticas de los bucket Se):
+		- Útil para acces de cuentas cruzadas a las colas SQS.
+		- Util para permitir a otros servicios (SNS, S3, etc) escribir en una cola SQS.
+
+### Dead Letter Queue (DLQ)
+- Si un consumidor falla en el procesamiento de un mensaje, con l Visibility Timeout, el mensaje regresa a la cola.
+- Podemos configurar el límite de cuántas veces un mensaje puede regresar a la cola.
+- Después de que el límite MaximumReceives es excedido, los mensajes van al DLQ.
+- Muy útil para debuguear.
+- El DLQ de una cola FIFO debe también ser una cola FIFO.
+- El DQL de una cola estándar debe ser también una cola estándar.
+- Debemos asegurarnos de procesar los mensajes en la DLQ antes de que expiren.
+- Redrive to Source:
+	- Característica que nos ayuda a consumir los mensajes en el DLQ para entender qué hay mal con ellos.
+	- Cuando nuestro código es arreglado, podemos redireccionar los mensajes desde el DLQ de regreso a la cola fuente (o cualquier otra cola) en lotes sin escribir código personalizado.
+
+### Delay Queues
+- Retiene un mensaje (los consumers no lo ven inmediatamente) hasta por 15 minutos.
+- Por defecto es 0 segundos (el mensaje está disponible de forma instantánea).
+- Se puede colocar un valor por defecto a nivel de cola.
+- Puede anular el valor por defecto en el envío usando el parámetro DelaySeconds.
+
+### Long Polling
+- Cuando un consumer solicita mensajes desde la cola, puede opcionalmente esperar por que los mensajes lleguen si no hay en la cola.
+- Decrementa el número de llamados al API hechos por SQS mientras incrementa la eficiencia y baja la latencia de nuestra aplicación.
+- El tiempo de espera puede ser entre 1 segundo y 20 (20 segundos preferiblemente).
+- Long Polling es preferido sobre Short Polling.
+- Puede ser habilitado a nivel de cola o a nivel del API usando ReceiveMessageWaitTimeSeconds.
+
+### Extended Client
+- El tamaño de los mensajes es 256kb, como enviar mensajes largos.
+- Utiliza la librería de Java SQS Extended Client.
+
+### Método de API que debemos conocer
+- CreateQueue para crear una cola (MessageRetentionPeriod es un parámetro que podemos enviar para establecer cuánto tiempo debe mantenerse un mensaje en la cola antes de ser descartado), DeleteQueue para eliminar una cola y todos sus mensajes.
+- PurgeQueue: elimina todos los mensajes en la cola.
+- SendMessage para enviar mensajes (DelaySeconds para hacer una espera antes de enviar los mensajes), ReceiveMessage para recibir mensajes y DeleteMessage para borrar un mensaje.
+- MaxNumberOfMessages: por defecto 1, máximo 10 (para API ReceiveMessage).
+- ReceiveMessageWaitTimeSeconds: Long Polling.
+- ChangeMessageVisibility: cambiar el timeout de mensajes.
+- APIs por lote para SendMessage, DeleteMessage, ChangeMessageVisibility ayuda a bajar los costos.
+
+### Colas FIFO
+- FIFO = First In First Out (ordenamiento de mensajes en la cola).
+- Limitado para 300 msg/s sin lotes, 3000 msg/s con lotes.
+- Exactamente una capacidad de envío (eliminando duplicados).
+- Los mensajes son procesados en orden por el consumer.
+- Deduplication:
+	- El intérvalo de desduplicación es de 5 minutos.
+	- Hay 2 métodos:
+		- Content based deduplication: hará un hash SHA-256 al cuerpo del mensaje.
+		- Explícitamente provee un Messade Deduplication ID.
+- Message Grouping
+	- Si especificamos el mismo valor de MessageGroupID en una cola SQS FIFO, podemos solo tener un consumer, y todos los mensajes en orden.
+	- Para tener orden a nidel de subconjunto de mensajes, especificar diferentes valores de MessageGroupID.
+		- Los mensajes que comparten un Message Group ID en común serán ordenados dentro del grupo.
+		- Cada ID de grupo puede tener un consumer diferente (procesamiento paralelo).
+		- Ordenamiento entre grupos no garantizado.
