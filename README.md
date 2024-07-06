@@ -2341,9 +2341,9 @@ Outputs:
 	- Encriptación:
 		- Encriptación in-flight usando API HTTPS.
 		- Encriptación at-rest usando llaves KMS.
-		- Encriptación client-side si el cleiente quiere hacer la encriptación/desencriptación por sucuenta.
+		- Encriptación client-side si el cliente quiere hacer la encriptación/desencriptación por su cuenta.
 	- Control de acceso: políticas IAM para regular el acceso al API de SQS.
-	- Políticas de acceso SQS (similar a las políticas de los bucket Se):
+	- Políticas de acceso SQS (similar a las políticas de los bucket S3):
 		- Útil para acces de cuentas cruzadas a las colas SQS.
 		- Util para permitir a otros servicios (SNS, S3, etc) escribir en una cola SQS.
 
@@ -2401,3 +2401,32 @@ Outputs:
 		- Los mensajes que comparten un Message Group ID en común serán ordenados dentro del grupo.
 		- Cada ID de grupo puede tener un consumer diferente (procesamiento paralelo).
 		- Ordenamiento entre grupos no garantizado.
+
+
+## Amazon SNS
+
+- ¿Qué pasaría si queremos enviar un mensaje para muchos destinatarios?
+- El productor del evento sólo envía el mensaje a un tema SNS.
+- Podemos tener muchos "receptores de eventos" (suscripciones) tanto como queremos escuchar las notificaciones de temas de SNS.
+- Cada suscriptor al tema recibirá todos los mensajes (nota: nueva característica para filtrar mensajes).
+- Hasta 12.500.000 suscripciones por tema.
+- Límite de 100.000 temas.
+
+SNS se integra con muchos servicios de AWS a los que podemos enviar los datos para notificaciones SNS, estos servicios son CloudWatch, AWS budgets, Lambda, ASG, buckets S3, DynamoDB, CloudFormation, AWS DMS, eventos RDS, etc.
+
+### ¿Cómo publicar?
+- Topic Publish (usando el SDK).
+	- Crear un tema.
+	- Crear una suscripción (o muchas).
+	- Publicar el tema.
+- Publicación directa (SDK para aplicaciones móviles).
+	- Crear una plataforma de aplicación.
+	- Crear un endpoint de plataforma.
+	- Publicar el endpoint de la plataforma.
+	- Funciona con Google GCM, Apple APSN, Amazon ADM...
+- Encriptación:
+	- Encriptación in-flight usando API HTTPS.
+	- Encriptación at-rest usando llaves KMS.
+	- Encriptación client-side si el cliente quiere hacer la encriptación/desencriptación por su cuenta.
+- Control de acceso: políticas IAM para regular el acceso al API de SNS.
+- Políticas de acceso SNS (similar a las políticas de los bucket S3).
